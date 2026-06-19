@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FII Select | Ferramenta</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="app-header">
+      <a class="brand" href="index.html"><img class="brand-logo" src="ASSETS/logo-header-fii-select.png" alt="FII Select" /></a>
+      <nav><a href="conta.html">Conta</a><a href="status-aprovado.html">Status</a><a class="active" href="ferramenta.html">Ferramenta</a></nav>
+      <a class="logout" href="index.html">Sair</a>
+    </header>
+    <main class="shell">
+      <header class="hero">
+        <div>
+          <p class="eyebrow">FII SELECT • MVP</p>
+          <h1>Estimativa de valor justo por renda</h1>
+          <p class="lead">
+            Consulte um fundo imobiliário, ajuste a taxa de risco e veja uma triagem inspirada no modelo
+            de Gordon.
+          </p>
+        </div>
+        <span class="pill" id="api-mode">Conectando...</span>
+      </header>
+
+      <section class="workspace">
+        <form class="controls" id="valuation-form">
+          <div class="section-heading">
+            <span>01</span>
+            <div>
+              <h2>Premissas</h2>
+              <p>Você controla o risco. Os dados do fundo são atualizados pela API.</p>
+            </div>
+          </div>
+
+          <label>
+            Ticker do FII
+            <input name="ticker" value="MXRF11" maxlength="6" autocomplete="off" />
+            <small>No sandbox, teste MXRF11 ou HGLG11.</small>
+          </label>
+
+          <label>
+            Taxa de risco adicional
+            <div class="range-line">
+              <input name="riskRate" id="risk-rate" type="range" min="0" max="10" step="0.25" value="2.5" />
+              <output id="risk-output">2,50%</output>
+            </div>
+            <small>Acrescida à Selic para formar o retorno exigido.</small>
+          </label>
+
+          <label>
+            Crescimento esperado dos rendimentos
+            <div class="range-line">
+              <input name="growthRate" id="growth-rate" type="range" min="-2" max="8" step="0.25" value="3" />
+              <output id="growth-output">3,00%</output>
+            </div>
+          </label>
+
+          <label>
+            Recorrência dos dividendos
+            <div class="range-line">
+              <input name="recurrence" id="recurrence" type="range" min="50" max="100" step="1" value="95" />
+              <output id="recurrence-output">95%</output>
+            </div>
+            <small>Reduz eventos não recorrentes na média histórica.</small>
+          </label>
+
+          <button type="submit">Atualizar estimativa</button>
+          <p class="error" id="error" role="alert"></p>
+        </form>
+
+        <section class="results" aria-live="polite">
+          <div class="section-heading">
+            <span>02</span>
+            <div>
+              <h2>Leitura do fundo</h2>
+              <p id="fund-name">Aguardando consulta...</p>
+            </div>
+          </div>
+
+          <div class="result-hero">
+            <div>
+              <p class="metric-label">Valor justo estimado</p>
+              <strong id="fair-value">—</strong>
+            </div>
+            <div class="reading" id="reading">—</div>
+          </div>
+
+          <div class="metric-grid">
+            <article><span>Preço observado</span><strong id="current-price">—</strong></article>
+            <article><span>Ágio / deságio</span><strong id="premium-discount">—</strong></article>
+            <article class="patrimonial"><span>P/VP</span><strong id="price-to-nav">—</strong><em id="patrimonial-reading">—</em></article>
+            <article><span>VP por cota</span><strong id="nav-per-share">—</strong></article>
+            <article><span>Selic automática</span><strong id="selic">—</strong></article>
+            <article><span>Retorno exigido</span><strong id="required-return">—</strong></article>
+            <article><span>Dividendo normalizado</span><strong id="normalized-dividend">—</strong></article>
+            <article><span>Histórico utilizado</span><strong id="dividends-used">—</strong></article>
+          </div>
+
+          <aside class="insight">
+            <span>LEITURA CRUZADA • RENDA + PATRIMÔNIO</span>
+            <p id="divergence">Aguardando consulta...</p>
+          </aside>
+
+          <details>
+            <summary>Como o cálculo funciona?</summary>
+            <p><code>Valor justo = D1 / (k - g)</code></p>
+            <p><strong>D1</strong>: dividendos normalizados dos próximos 12 meses.</p>
+            <p><strong>k</strong>: Selic + taxa de risco adicional.</p>
+            <p><strong>g</strong>: crescimento esperado dos rendimentos.</p>
+            <p><strong>P/VP</strong>: preço observado dividido pelo valor patrimonial por cota. Ele complementa a leitura, mas não entra diretamente na fórmula de Gordon.</p>
+          </details>
+
+          <p class="disclaimer">
+            Conteúdo educacional. Esta estimativa simplifica a realidade e não representa recomendação de
+            compra ou venda.
+          </p>
+        </section>
+      </section>
+
+      <section class="compare-panel">
+        <div class="compare-heading">
+          <div class="section-heading">
+            <span>03</span>
+            <div>
+              <h2>Comparador de FIIs</h2>
+              <p>Monte uma tabela com até cinco fundos e teste a mesma taxa de risco ou premissas individuais.</p>
+            </div>
+          </div>
+          <button class="secondary compact" id="add-current" type="button">Adicionar ticker atual</button>
+        </div>
+
+        <div class="compare-toolbar">
+          <label>
+            Taxa de risco compartilhada
+            <div class="range-line">
+              <input id="shared-risk-rate" type="range" min="0" max="10" step="0.25" value="2.5" />
+              <output id="shared-risk-output">2,50%</output>
+            </div>
+          </label>
+          <button class="secondary" id="apply-shared-risk" type="button">Aplicar a todos</button>
+          <button id="refresh-comparison" type="button">Atualizar tabela</button>
+        </div>
+
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>FII</th>
+                <th>Taxa de risco</th>
+                <th>Preço</th>
+                <th>P/VP</th>
+                <th>Valor justo</th>
+                <th>Ágio / deságio</th>
+                <th>Leitura</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="comparison-body"></tbody>
+          </table>
+        </div>
+
+        <p class="table-note" id="comparison-note">
+          Comece com MXRF11. No sandbox, fundos adicionais podem aparecer como bloqueados até a configuração do token Pro.
+        </p>
+
+        <div class="suggestions">
+          <div>
+            <p class="eyebrow">SUGESTÃO AUTOMÁTICA</p>
+            <h3>FIIs parecidos com <span id="suggestion-origin">MXRF11</span></h3>
+            <p>A primeira versão usa o mesmo tipo de fundo. Com o token Pro, o ranking pode considerar DY, P/VP, patrimônio e carteira.</p>
+          </div>
+          <div class="suggestion-list" id="suggestion-list"></div>
+        </div>
+      </section>
+    </main>
+    <script src="app.js" type="module"></script>
+  </body>
+</html>
