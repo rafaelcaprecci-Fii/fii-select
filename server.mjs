@@ -1,4 +1,5 @@
 import http from "node:http";
+import { timingSafeEqual } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { extname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -7,8 +8,11 @@ const root = fileURLToPath(new URL(".", import.meta.url));
 const publicDir = join(root, "public");
 const outputDir = join(root, "outputs");
 const port = Number(process.env.PORT || 4173);
-const host = process.env.HOST || "0.0.0.0";
+const host = process.env.HOST || "127.0.0.1";
 const brapiToken = process.env.BRAPI_TOKEN || "";
+const adminUser = process.env.ADMIN_USER || "";
+const adminPassword = process.env.ADMIN_PASSWORD || "";
+const protectedAdminRoutes = new Set(["/admin", "/admin/login", "/admin/usuarios"]);
 const sandboxTickers = new Set(["MXRF11", "HGLG11"]);
 const cache = new Map();
 const fiiCatalog = [
@@ -40,6 +44,43 @@ function json(res, status, data) {
     "Cache-Control": "no-store",
   });
   res.end(JSON.stringify(data));
+}
+
+function safeCompare(a, b) {
+  const left = Buffer.from(a);
+  const right = Buffer.from(b);
+  return left.length === right.length && timingSafeEqual(left, right);
+}
+
+function requireAdminAuth(req, res) {
+  if (!adminUser || !adminPassword) {
+    json(res, 503, { error: "Admin indisponivel: credenciais nao configuradas." });
+    return false;
+  }
+
+  const header = req.headers.authorization || "";
+  const [scheme, encoded] = header.split(" ");
+  if (scheme !== "Basic" || !encoded) {
+    res.writeHead(401, {
+      "WWW-Authenticate": 'Basic realm="FII Select Admin"',
+      "Cache-Control": "no-store",
+    });
+    res.end("Autenticacao obrigatoria.");
+    return false;
+  }
+
+  const [user, ...passwordParts] = Buffer.from(encoded, "base64").toString("utf8").split(":");
+  const password = passwordParts.join(":");
+  if (!safeCompare(user, adminUser) || !safeCompare(password, adminPassword)) {
+    res.writeHead(401, {
+      "WWW-Authenticate": 'Basic realm="FII Select Admin"',
+      "Cache-Control": "no-store",
+    });
+    res.end("Credenciais invalidas.");
+    return false;
+  }
+
+  return true;
 }
 
 function round(value, decimals = 2) {
@@ -291,6 +332,8 @@ async function serveStatic(req, res, pathname) {
     "/admin": "admin.html",
     "/admin/usuarios": "admin.html",
   };
+  if (protectedAdminRoutes.has(pathname) && !requireAdminAuth(req, res)) return;
+
   const relative = routeMap[pathname] || pathname.slice(1);
   const file = normalize(join(publicDir, relative));
   if (!file.startsWith(publicDir)) return json(res, 403, { error: "Acesso negado." });
