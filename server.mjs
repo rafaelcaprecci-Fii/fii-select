@@ -1,6 +1,8 @@
 import http from "node:http";
 import { timingSafeEqual } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
+import net from "node:net";
+import tls from "node:tls";
 import { extname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -12,7 +14,7 @@ const host = process.env.HOST || "127.0.0.1";
 const brapiToken = process.env.BRAPI_TOKEN || "";
 const adminUser = process.env.ADMIN_USER || "";
 const adminPassword = process.env.ADMIN_PASSWORD || "";
-const protectedAdminRoutes = new Set(["/admin", "/admin/login", "/admin/usuarios"]);
+const protectedAdminRoutes = new Set(["/admin", "/admin/login", "/admin/usuarios", "/admin/testar-email"]);
 const sandboxTickers = new Set(["MXRF11", "HGLG11"]);
 const cache = new Map();
 const fiiCatalog = [
@@ -81,6 +83,162 @@ function requireAdminAuth(req, res) {
   }
 
   return true;
+}
+
+function requireEnv(name) {
+  const value = process.env[name];
+  if (!value) throw new Error(`Variavel ${name} nao configurada.`);
+  return value;
+}
+
+function extractEmailAddress(value) {
+  const match = value.match(/<([^>]+)>/);
+  return (match ? match[1] : value).trim();
+}
+
+function createSmtpMessage({ from, to, subject, body }) {
+  const headers = [
+    `From: ${from}`,
+    `To: ${to}`,
+    `Subject: ${subject}`,
+    "MIME-Version: 1.0",
+    "Content-Type: text/plain; charset=utf-8",
+    "Content-Transfer-Encoding: 8bit",
+  ];
+  const safeBody = body.replace(/^\./gm, "..");
+  return `${headers.join("\r\n")}\r\n\r\n${safeBody}\r\n.`;
+}
+
+function connectSmtpSocket({ host, port, secure }) {
+  return new Promise((resolve, reject) => {
+    const socket = secure
+      ? tls.connect({ host, port, servername: host })
+      : net.connect({ host, port });
+    const onConnect = () => {
+      socket.off("error", reject);
+      resolve(socket);
+    };
+    socket.once("error", reject);
+    socket.once(secure ? "secureConnect" : "connect", onConnect);
+  });
+}
+
+function createSmtpSession(socket) {
+  let currentSocket = socket;
+  let buffer = "";
+  let waiter = null;
+
+  const onData = (chunk) => {
+    buffer += chunk.toString("utf8");
+    if (waiter) waiter();
+  };
+  currentSocket.on("data", onData);
+
+  const waitForData = () =>
+    new Promise((resolve, reject) => {
+      const onError = (error) => {
+        cleanup();
+        reject(error);
+      };
+      const onClose = () => {
+        cleanup();
+        reject(new Error("Conexao SMTP encerrada inesperadamente."));
+      };
+      const cleanup = () => {
+        currentSocket.off("error", onError);
+        currentSocket.off("close", onClose);
+        waiter = null;
+      };
+      waiter = () => {
+        cleanup();
+        resolve();
+      };
+      currentSocket.once("error", onError);
+      currentSocket.once("close", onClose);
+    });
+
+  const readResponse = async () => {
+    while (true) {
+      const lines = buffer.split(/\r?\n/);
+      const completeLines = lines.slice(0, -1);
+      const completeIndex = completeLines.findIndex((line) => /^\d{3} /.test(line));
+      if (completeIndex !== -1) {
+        const responseLines = completeLines.slice(0, completeIndex + 1);
+        buffer = lines.slice(completeIndex + 1).join("\n");
+        const lastLine = responseLines.at(-1);
+        return {
+          code: Number(lastLine.slice(0, 3)),
+          message: responseLines.join("\n"),
+        };
+      }
+      await waitForData();
+    }
+  };
+
+  const expect = async (codes) => {
+    const response = await readResponse();
+    if (!codes.includes(response.code)) {
+      throw new Error(`SMTP respondeu ${response.code}: ${response.message}`);
+    }
+    return response;
+  };
+
+  const command = async (line, codes) => {
+    currentSocket.write(`${line}\r\n`);
+    return expect(codes);
+  };
+
+  const startTls = async (host) => {
+    currentSocket.off("data", onData);
+    currentSocket = tls.connect({ socket: currentSocket, servername: host });
+    await new Promise((resolve, reject) => {
+      currentSocket.once("secureConnect", resolve);
+      currentSocket.once("error", reject);
+    });
+    currentSocket.on("data", onData);
+  };
+
+  const close = () => currentSocket.end();
+
+  return { command, close, expect, startTls };
+}
+
+async function sendBrevoTestEmail() {
+  const smtpHost = requireEnv("BREVO_SMTP_HOST");
+  const smtpPort = Number(requireEnv("BREVO_SMTP_PORT"));
+  const smtpUser = requireEnv("BREVO_SMTP_USER");
+  const smtpPass = requireEnv("BREVO_SMTP_PASS");
+  const emailFrom = requireEnv("EMAIL_FROM");
+  if (!Number.isInteger(smtpPort) || smtpPort <= 0) {
+    throw new Error("Variavel BREVO_SMTP_PORT invalida.");
+  }
+
+  const to = "rafael.caprecci@2bold.com.br";
+  const subject = "Teste SMTP FII Select";
+  const body = "O envio SMTP do FII Select via Brevo funcionou.";
+  const secure = smtpPort === 465;
+  const socket = await connectSmtpSocket({ host: smtpHost, port: smtpPort, secure });
+  const smtp = createSmtpSession(socket);
+
+  try {
+    await smtp.expect([220]);
+    await smtp.command(`EHLO ${host}`, [250]);
+    if (!secure) {
+      await smtp.command("STARTTLS", [220]);
+      await smtp.startTls(smtpHost);
+      await smtp.command(`EHLO ${host}`, [250]);
+    }
+    await smtp.command("AUTH LOGIN", [334]);
+    await smtp.command(Buffer.from(smtpUser).toString("base64"), [334]);
+    await smtp.command(Buffer.from(smtpPass).toString("base64"), [235]);
+    await smtp.command(`MAIL FROM:<${extractEmailAddress(emailFrom)}>`, [250]);
+    await smtp.command(`RCPT TO:<${to}>`, [250, 251]);
+    await smtp.command("DATA", [354]);
+    await smtp.command(createSmtpMessage({ from: emailFrom, to, subject, body }), [250]);
+    await smtp.command("QUIT", [221]);
+  } finally {
+    smtp.close();
+  }
 }
 
 function round(value, decimals = 2) {
@@ -352,6 +510,16 @@ async function serveStatic(req, res, pathname) {
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url || "/", `http://${req.headers.host || "localhost"}`);
   try {
+    if (url.pathname === "/admin/testar-email") {
+      if (req.method !== "GET") return json(res, 405, { ok: false, error: "Metodo nao permitido." });
+      if (!requireAdminAuth(req, res)) return;
+      try {
+        await sendBrevoTestEmail();
+        return json(res, 200, { ok: true });
+      } catch (error) {
+        return json(res, 500, { ok: false, error: error.message || "Falha ao enviar e-mail." });
+      }
+    }
     if (url.pathname === "/api/health") {
       return json(res, 200, {
         ok: true,
