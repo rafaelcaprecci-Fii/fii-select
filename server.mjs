@@ -1,5 +1,5 @@
 import http from "node:http";
-import { timingSafeEqual } from "node:crypto";
+import { randomUUID, timingSafeEqual } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { extname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -7,14 +7,38 @@ import { fileURLToPath } from "node:url";
 const root = fileURLToPath(new URL(".", import.meta.url));
 const publicDir = join(root, "public");
 const outputDir = join(root, "outputs");
+const dataDir = join(root, "data");
+const usersFile = join(dataDir, "users.json");
 const port = Number(process.env.PORT || 4173);
 const host = process.env.HOST || "127.0.0.1";
 const brapiToken = process.env.BRAPI_TOKEN || "";
 const adminUser = process.env.ADMIN_USER || "";
 const adminPassword = process.env.ADMIN_PASSWORD || "";
 const protectedAdminRoutes = new Set(["/admin", "/admin/login", "/admin/usuarios", "/admin/testar-email"]);
+const protectedAdminApiPrefix = "/admin/api/";
+const platformContactUrl =
+  "https://wa.me/5511971780101?text=Ol%C3%A1.%20Quero%20reativar%20meu%20acesso%20ao%20FII%20Select.";
+const templateEnvByEvent = {
+  cadastroRecebido: "BREVO_TEMPLATE_CADASTRO_RECEBIDO",
+  acessoAprovado: "BREVO_TEMPLATE_ACESSO_APROVADO",
+  cadastroRecusado: "BREVO_TEMPLATE_CADASTRO_RECUSADO",
+  testeIniciado: "BREVO_TEMPLATE_TESTE_INICIADO",
+  testeFinalizado: "BREVO_TEMPLATE_TESTE_FINALIZADO",
+  contaArquivada: "BREVO_TEMPLATE_CONTA_ARQUIVADA",
+  contaInativada: "BREVO_TEMPLATE_CONTA_INATIVADA",
+};
+const eventLabel = {
+  cadastroRecebido: "Cadastro recebido",
+  acessoAprovado: "Acesso aprovado",
+  cadastroRecusado: "Cadastro recusado",
+  testeIniciado: "Teste de 7 dias começou",
+  testeFinalizado: "Teste de 7 dias terminou",
+  contaArquivada: "Conta arquivada",
+  contaInativada: "Conta inativada",
+};
 const sandboxTickers = new Set(["MXRF11", "HGLG11"]);
 const cache = new Map();
+let usersQueue = Promise.resolve();
 const fiiCatalog = [
   { ticker: "MXRF11", segmentType: "papel", label: "Maxi Renda", sandbox: true },
   { ticker: "KNCR11", segmentType: "papel", label: "Kinea Rendimentos", sandbox: false },
@@ -96,9 +120,53 @@ function parseEmailFrom(value) {
   return { email: match[2].trim(), ...(name ? { name } : {}) };
 }
 
-async function sendBrevoApiTestEmail() {
+function originFrom(req) {
+  const protocol = req.headers["x-forwarded-proto"] || "https";
+  const forwardedHost = req.headers["x-forwarded-host"];
+  return `${protocol}://${forwardedHost || req.headers.host || "localhost"}`;
+}
+
+function formatBrazilDate(value) {
+  if (!value) return "";
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat("pt-BR", {
+    timeZone: "America/Sao_Paulo",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(date);
+}
+
+function addDays(date, days) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+function userParams(user, origin) {
+  const baseUrl = origin || "https://fiiselect.com.br";
+  const accessLink = user.linkAcesso || baseUrl;
+  return {
+    NOME: user.name?.trim() || "Investidor",
+    EMAIL: user.email?.trim() || "",
+    LINK_ACESSO: accessLink,
+    LINK_PLANOS: user.linkPlanos || `${baseUrl}/assinar`,
+    LINK_REATIVACAO: user.linkReativacao || platformContactUrl,
+    DATA_INICIO_TESTE: formatBrazilDate(user.trialStartedAt),
+    DATA_FIM_TESTE: formatBrazilDate(user.trialEndsAt),
+  };
+}
+
+async function sendBrevoTransactionalEmail({ user, event, origin }) {
   const brevoApiKey = requireEnv("BREVO_API_KEY");
   const emailFrom = requireEnv("EMAIL_FROM");
+  const templateId = Number(requireEnv(templateEnvByEvent[event]));
+  const email = user.email?.trim();
+  if (!email) throw new Error("E-mail do usuario vazio. Envio nao realizado.");
+  if (!Number.isInteger(templateId) || templateId <= 0) {
+    throw new Error(`Template Brevo invalido para ${templateEnvByEvent[event]}.`);
+  }
 
   const response = await fetch("https://api.brevo.com/v3/smtp/email", {
     method: "POST",
@@ -108,9 +176,9 @@ async function sendBrevoApiTestEmail() {
     },
     body: JSON.stringify({
       sender: parseEmailFrom(emailFrom),
-      to: [{ email: "rafael.caprecci@2bold.com.br" }],
-      subject: "Teste Brevo API FII Select",
-      textContent: "O envio de e-mail do FII Select via Brevo API funcionou.",
+      to: [{ email, name: user.name?.trim() || "Investidor" }],
+      templateId,
+      params: userParams(user, origin),
     }),
   });
 
@@ -118,6 +186,257 @@ async function sendBrevoApiTestEmail() {
     const message = await response.text();
     throw new Error(`Brevo API respondeu ${response.status}: ${message.slice(0, 180)}`);
   }
+
+  return { templateId };
+}
+
+async function sendBrevoApiTestEmail() {
+  const user = {
+    name: "Rafael Caprecci",
+    email: "rafael.caprecci@2bold.com.br",
+  };
+  const brevoApiKey = requireEnv("BREVO_API_KEY");
+  const emailFrom = requireEnv("EMAIL_FROM");
+  const response = await fetch("https://api.brevo.com/v3/smtp/email", {
+    method: "POST",
+    headers: {
+      "api-key": brevoApiKey,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      sender: parseEmailFrom(emailFrom),
+      to: [{ email: user.email, name: user.name }],
+      subject: "Teste Brevo API FII Select",
+      textContent: "O envio de e-mail do FII Select via Brevo API funcionou.",
+    }),
+  });
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(`Brevo API respondeu ${response.status}: ${message.slice(0, 180)}`);
+  }
+}
+
+async function readUsers() {
+  try {
+    const data = await readFile(usersFile, "utf8");
+    return JSON.parse(data);
+  } catch (error) {
+    if (error.code === "ENOENT") return [];
+    throw error;
+  }
+}
+
+async function writeUsers(users) {
+  await mkdir(dataDir, { recursive: true });
+  await writeFile(usersFile, JSON.stringify(users, null, 2));
+}
+
+function withUsers(mutator) {
+  const run = usersQueue.then(async () => {
+    const users = await readUsers();
+    const result = await mutator(users);
+    await writeUsers(users);
+    return result;
+  });
+  usersQueue = run.catch(() => {});
+  return run;
+}
+
+async function readJsonBody(req) {
+  const chunks = [];
+  let size = 0;
+  for await (const chunk of req) {
+    size += chunk.length;
+    if (size > 1024 * 1024) throw new Error("Payload excedeu o limite de 1 MB.");
+    chunks.push(chunk);
+  }
+  if (!chunks.length) return {};
+  return JSON.parse(Buffer.concat(chunks).toString("utf8"));
+}
+
+function publicUser(user) {
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    phone: user.phone,
+    plan: user.plan,
+    status: user.status,
+    createdAt: user.createdAt,
+    updatedAt: user.updatedAt,
+    trialStartedAt: user.trialStartedAt,
+    trialEndsAt: user.trialEndsAt,
+    lastEmailSentAt: user.lastEmailSentAt,
+    lastEmailTemplate: user.lastEmailTemplate,
+    lastEmailError: user.lastEmailError,
+    history: user.history || [],
+  };
+}
+
+function createUser(input) {
+  const now = new Date().toISOString();
+  return {
+    id: randomUUID(),
+    name: String(input.name || "").trim() || "Investidor",
+    email: String(input.email || "").trim().toLowerCase(),
+    phone: String(input.phone || "").trim(),
+    plan: String(input.plan || "fundador").trim(),
+    status: "pending",
+    createdAt: now,
+    updatedAt: now,
+    trialStartedAt: "",
+    trialEndsAt: "",
+    lastEmailSentAt: "",
+    lastEmailTemplate: "",
+    lastEmailError: "",
+    history: [`${formatBrazilDate(now)} - Cadastro criado`],
+  };
+}
+
+function isTrialPlan(user) {
+  return String(user.plan || "").toLowerCase().includes("teste");
+}
+
+function statusTemplateEvents(user, nextStatus, previousStatus) {
+  if (["approved", "active", "aprovado", "ativo"].includes(nextStatus)) {
+    const events = ["acessoAprovado"];
+    if (isTrialPlan(user) && !user.trialStartedAt && previousStatus !== "trial_active") {
+      events.push("testeIniciado");
+    }
+    return events;
+  }
+  if (["rejected", "refused", "recusado", "rejeitado"].includes(nextStatus)) return ["cadastroRecusado"];
+  if (["trial_active", "teste_ativo", "teste"].includes(nextStatus)) return ["testeIniciado"];
+  if (["trial_ended", "teste_finalizado", "teste_encerrado"].includes(nextStatus)) return ["testeFinalizado"];
+  if (["archived", "arquivado"].includes(nextStatus)) return ["contaArquivada"];
+  if (["inactive", "inativo", "inativado"].includes(nextStatus)) return ["contaInativada"];
+  return [];
+}
+
+function normalizeStatus(status) {
+  const value = String(status || "").trim().toLowerCase();
+  const map = {
+    aprovado: "approved",
+    ativo: "active",
+    recusado: "rejected",
+    rejeitado: "rejected",
+    teste: "trial_active",
+    teste_ativo: "trial_active",
+    teste_finalizado: "trial_ended",
+    teste_encerrado: "trial_ended",
+    arquivado: "archived",
+    inativo: "inactive",
+    inativado: "inactive",
+    pendente: "pending",
+  };
+  return map[value] || value || "pending";
+}
+
+function statusLabel(status) {
+  return {
+    pending: "Pendente",
+    approved: "Aprovado",
+    active: "Ativo",
+    rejected: "Recusado",
+    trial_active: "Teste grátis ativo",
+    trial_ended: "Teste finalizado",
+    archived: "Arquivado",
+    inactive: "Inativo",
+  }[status] || status;
+}
+
+function applyTrialDates(user, now = new Date()) {
+  user.trialStartedAt = now.toISOString();
+  user.trialEndsAt = addDays(now, 7).toISOString();
+}
+
+async function sendAndRecord(user, event, origin) {
+  try {
+    const { templateId } = await sendBrevoTransactionalEmail({ user, event, origin });
+    user.lastEmailSentAt = new Date().toISOString();
+    user.lastEmailTemplate = event;
+    user.lastEmailError = "";
+    user.history = user.history || [];
+    user.history.unshift(`${formatBrazilDate(user.lastEmailSentAt)} - E-mail enviado: ${eventLabel[event]}`);
+    return { ok: true, event, templateId };
+  } catch (error) {
+    user.lastEmailError = error.message || "Falha ao enviar e-mail.";
+    user.history = user.history || [];
+    user.history.unshift(`${formatBrazilDate(new Date())} - Falha no e-mail ${eventLabel[event]}: ${user.lastEmailError}`);
+    return { ok: false, event, error: user.lastEmailError };
+  }
+}
+
+async function expireFinishedTrials(users, origin) {
+  const now = Date.now();
+  const emailResults = [];
+  for (const user of users) {
+    if (
+      user.status === "trial_active" &&
+      user.trialEndsAt &&
+      new Date(user.trialEndsAt).getTime() <= now
+    ) {
+      user.status = "trial_ended";
+      user.updatedAt = new Date().toISOString();
+      user.history = user.history || [];
+      user.history.unshift(`${formatBrazilDate(user.updatedAt)} - Teste grátis encerrado automaticamente`);
+      emailResults.push(await sendAndRecord(user, "testeFinalizado", origin));
+    }
+  }
+  return emailResults;
+}
+
+async function registerUser(input, origin) {
+  return withUsers(async (users) => {
+    const user = createUser(input);
+    const emailResult = await sendAndRecord(user, "cadastroRecebido", origin);
+    users.unshift(user);
+    return { user: publicUser(user), email: emailResult };
+  });
+}
+
+async function changeUserStatus(id, status, origin) {
+  return withUsers(async (users) => {
+    const user = users.find((item) => item.id === id);
+    if (!user) throw new Error("Usuario nao encontrado.");
+
+    const previousStatus = user.status;
+    const nextStatus = normalizeStatus(status);
+    user.status = nextStatus;
+    user.updatedAt = new Date().toISOString();
+    user.history = user.history || [];
+    user.history.unshift(`${formatBrazilDate(user.updatedAt)} - Status alterado para ${statusLabel(nextStatus)}`);
+
+    const events = statusTemplateEvents(user, nextStatus, previousStatus);
+    if (events.includes("testeIniciado") && !user.trialStartedAt) {
+      applyTrialDates(user);
+      user.status = "trial_active";
+      user.updatedAt = new Date().toISOString();
+      user.history.unshift(
+        `${formatBrazilDate(user.updatedAt)} - Teste gratuito iniciado ate ${formatBrazilDate(user.trialEndsAt)}`,
+      );
+    }
+
+    const emailResults = [];
+    for (const event of events) emailResults.push(await sendAndRecord(user, event, origin));
+    return { user: publicUser(user), emailResults };
+  });
+}
+
+function currentTemplateEvent(user) {
+  const events = statusTemplateEvents(user, user.status, user.status);
+  if (user.status === "pending") return "cadastroRecebido";
+  return events.at(-1) || "cadastroRecebido";
+}
+
+async function resendUserEmail(id, origin) {
+  return withUsers(async (users) => {
+    const user = users.find((item) => item.id === id);
+    if (!user) throw new Error("Usuario nao encontrado.");
+    const event = currentTemplateEvent(user);
+    const email = await sendAndRecord(user, event, origin);
+    return { user: publicUser(user), email };
+  });
 }
 
 function round(value, decimals = 2) {
@@ -388,6 +707,7 @@ async function serveStatic(req, res, pathname) {
 
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url || "/", `http://${req.headers.host || "localhost"}`);
+  const origin = originFrom(req);
   try {
     if (url.pathname === "/admin/testar-email") {
       if (req.method !== "GET") return json(res, 405, { ok: false, error: "Metodo nao permitido." });
@@ -398,6 +718,46 @@ const server = http.createServer(async (req, res) => {
       } catch (error) {
         return json(res, 500, { ok: false, error: error.message || "Falha ao enviar e-mail." });
       }
+    }
+    if (url.pathname.startsWith(protectedAdminApiPrefix)) {
+      if (!requireAdminAuth(req, res)) return;
+
+      if (url.pathname === "/admin/api/users" && req.method === "GET") {
+        const result = await withUsers(async (users) => {
+          const emailResults = await expireFinishedTrials(users, origin);
+          return {
+            users: users.map(publicUser),
+            emailResults,
+          };
+        });
+        return json(res, 200, { ok: true, ...result });
+      }
+
+      if (url.pathname === "/admin/api/users" && req.method === "POST") {
+        const body = await readJsonBody(req);
+        const result = await registerUser(body, origin);
+        return json(res, 201, { ok: true, ...result });
+      }
+
+      const statusMatch = url.pathname.match(/^\/admin\/api\/users\/([^/]+)\/status$/);
+      if (statusMatch && req.method === "PATCH") {
+        const body = await readJsonBody(req);
+        const result = await changeUserStatus(decodeURIComponent(statusMatch[1]), body.status, origin);
+        return json(res, 200, { ok: true, ...result });
+      }
+
+      const resendMatch = url.pathname.match(/^\/admin\/api\/users\/([^/]+)\/resend-email$/);
+      if (resendMatch && req.method === "POST") {
+        const result = await resendUserEmail(decodeURIComponent(resendMatch[1]), origin);
+        return json(res, 200, { ok: true, ...result });
+      }
+
+      return json(res, 404, { ok: false, error: "Rota administrativa nao encontrada." });
+    }
+    if (url.pathname === "/api/users/register" && req.method === "POST") {
+      const body = await readJsonBody(req);
+      const result = await registerUser(body, origin);
+      return json(res, 201, { ok: true, ...result });
     }
     if (url.pathname === "/api/health") {
       return json(res, 200, {
