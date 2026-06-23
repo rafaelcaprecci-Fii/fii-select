@@ -290,6 +290,22 @@ function publicUser(user) {
   };
 }
 
+function validateRegistrationInput(input) {
+  const name = String(input.name || "").trim();
+  const email = String(input.email || "").trim().toLowerCase();
+  const phone = String(input.phone || "").replace(/\D/g, "");
+  const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const validPhone = phone.length >= 10 && phone.length <= 13 && !/^(\d)\1+$/.test(phone);
+
+  if (!name) throw new Error("Informe seu nome.");
+  if (!email) throw new Error("Informe seu e-mail.");
+  if (!emailPattern.test(email)) throw new Error("Informe um e-mail válido.");
+  if (!phone) throw new Error("Informe seu WhatsApp.");
+  if (!validPhone) throw new Error("Informe um WhatsApp válido.");
+
+  return { ...input, name, email, phone };
+}
+
 function createUser(input) {
   const now = new Date().toISOString();
   const intent = ["trial", "founder", "general"].includes(input.intent) ? input.intent : "general";
@@ -302,9 +318,9 @@ function createUser(input) {
   const status = intent === "trial" ? "pending_trial" : intent === "founder" ? "pending_founder" : "pending";
   return {
     id: randomUUID(),
-    name: String(input.name || "").trim() || "Investidor",
-    email: String(input.email || "").trim().toLowerCase(),
-    phone: String(input.phone || "").trim(),
+    name: input.name,
+    email: input.email,
+    phone: input.phone,
     intent,
     plan,
     status,
@@ -423,9 +439,18 @@ async function expireFinishedTrials(users, origin) {
 }
 
 async function registerUser(input, origin) {
+  const validatedInput = validateRegistrationInput(input);
   return withUsers(async (users) => {
-    const user = createUser(input);
-    if (!user.email) throw new Error("E-mail obrigatorio.");
+    const duplicate = users.some(
+      (item) => String(item.email || "").trim().toLowerCase() === validatedInput.email,
+    );
+    if (duplicate) {
+      throw new Error(
+        "Este e-mail já possui cadastro. Tente entrar ou aguarde a análise do seu acesso.",
+      );
+    }
+
+    const user = createUser(validatedInput);
     const emailResult = await sendAndRecord(user, "cadastroRecebido", origin);
     users.unshift(user);
     return { user: publicUser(user), email: emailResult };
@@ -820,9 +845,13 @@ const server = http.createServer(async (req, res) => {
       }
 
       if (url.pathname === "/admin/api/users" && req.method === "POST") {
-        const body = await readJsonBody(req);
-        const result = await registerUser(body, origin);
-        return json(res, 201, { ok: true, ...result });
+        try {
+          const body = await readJsonBody(req);
+          const result = await registerUser(body, origin);
+          return json(res, 201, { ok: true, ...result });
+        } catch (error) {
+          return json(res, 400, { ok: false, error: error.message || "Cadastro inválido." });
+        }
       }
 
       const statusMatch = url.pathname.match(/^\/admin\/api\/users\/([^/]+)\/status$/);
@@ -847,9 +876,13 @@ const server = http.createServer(async (req, res) => {
       return json(res, 404, { ok: false, error: "Rota administrativa nao encontrada." });
     }
     if (url.pathname === "/api/users/register" && req.method === "POST") {
-      const body = await readJsonBody(req);
-      const result = await registerUser(body, origin);
-      return json(res, 201, { ok: true, ...result });
+      try {
+        const body = await readJsonBody(req);
+        const result = await registerUser(body, origin);
+        return json(res, 201, { ok: true, ...result });
+      } catch (error) {
+        return json(res, 400, { ok: false, error: error.message || "Cadastro inválido." });
+      }
     }
     if (url.pathname === "/api/users/login-status" && req.method === "POST") {
       const body = await readJsonBody(req);

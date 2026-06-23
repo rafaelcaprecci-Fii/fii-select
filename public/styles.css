@@ -3945,6 +3945,16 @@ body.auth-page .stack-form input {
   min-height: 54px;
 }
 
+body.auth-page .stack-form .form-message {
+  min-height: 18px;
+  margin: 2px 0 0;
+  color: #b42318;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.35;
+  text-align: left;
+}
+
 body.auth-page .cta {
   width: 100%;
   box-sizing: border-box;
