@@ -153,8 +153,8 @@ function userParams(user, origin) {
     LINK_ACESSO: accessLink,
     LINK_PLANOS: user.linkPlanos || `${baseUrl}/assinar`,
     LINK_REATIVACAO: user.linkReativacao || platformContactUrl,
-    DATA_INICIO_TESTE: formatBrazilDate(user.trialStartedAt),
-    DATA_FIM_TESTE: formatBrazilDate(user.trialEndsAt),
+    DATA_INICIO_TESTE: formatBrazilDate(user.trialStartAt || user.trialStartedAt),
+    DATA_FIM_TESTE: formatBrazilDate(user.trialEndAt || user.trialEndsAt),
   };
 }
 
@@ -264,8 +264,8 @@ function publicUser(user) {
     status: user.status,
     createdAt: user.createdAt,
     updatedAt: user.updatedAt,
-    trialStartedAt: user.trialStartedAt,
-    trialEndsAt: user.trialEndsAt,
+    trialStartAt: user.trialStartAt || user.trialStartedAt || "",
+    trialEndAt: user.trialEndAt || user.trialEndsAt || "",
     lastEmailSentAt: user.lastEmailSentAt,
     lastEmailTemplate: user.lastEmailTemplate,
     lastEmailError: user.lastEmailError,
@@ -284,8 +284,8 @@ function createUser(input) {
     status: "pending",
     createdAt: now,
     updatedAt: now,
-    trialStartedAt: "",
-    trialEndsAt: "",
+    trialStartAt: "",
+    trialEndAt: "",
     lastEmailSentAt: "",
     lastEmailTemplate: "",
     lastEmailError: "",
@@ -300,7 +300,7 @@ function isTrialPlan(user) {
 function statusTemplateEvents(user, nextStatus, previousStatus) {
   if (["approved", "active", "aprovado", "ativo"].includes(nextStatus)) {
     const events = ["acessoAprovado"];
-    if (isTrialPlan(user) && !user.trialStartedAt && previousStatus !== "trial_active") {
+    if (isTrialPlan(user) && !(user.trialStartAt || user.trialStartedAt) && previousStatus !== "trial_active") {
       events.push("testeIniciado");
     }
     return events;
@@ -346,8 +346,10 @@ function statusLabel(status) {
 }
 
 function applyTrialDates(user, now = new Date()) {
-  user.trialStartedAt = now.toISOString();
-  user.trialEndsAt = addDays(now, 7).toISOString();
+  user.trialStartAt = now.toISOString();
+  user.trialEndAt = addDays(now, 7).toISOString();
+  delete user.trialStartedAt;
+  delete user.trialEndsAt;
 }
 
 async function sendAndRecord(user, event, origin) {
@@ -373,8 +375,8 @@ async function expireFinishedTrials(users, origin) {
   for (const user of users) {
     if (
       user.status === "trial_active" &&
-      user.trialEndsAt &&
-      new Date(user.trialEndsAt).getTime() <= now
+      (user.trialEndAt || user.trialEndsAt) &&
+      new Date(user.trialEndAt || user.trialEndsAt).getTime() <= now
     ) {
       user.status = "trial_ended";
       user.updatedAt = new Date().toISOString();
@@ -408,12 +410,12 @@ async function changeUserStatus(id, status, origin) {
     user.history.unshift(`${formatBrazilDate(user.updatedAt)} - Status alterado para ${statusLabel(nextStatus)}`);
 
     const events = statusTemplateEvents(user, nextStatus, previousStatus);
-    if (events.includes("testeIniciado") && !user.trialStartedAt) {
+    if (events.includes("testeIniciado") && !(user.trialStartAt || user.trialStartedAt)) {
       applyTrialDates(user);
       user.status = "trial_active";
       user.updatedAt = new Date().toISOString();
       user.history.unshift(
-        `${formatBrazilDate(user.updatedAt)} - Teste gratuito iniciado ate ${formatBrazilDate(user.trialEndsAt)}`,
+        `${formatBrazilDate(user.updatedAt)} - Teste gratuito iniciado ate ${formatBrazilDate(user.trialEndAt)}`,
       );
     }
 
