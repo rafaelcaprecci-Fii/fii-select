@@ -138,6 +138,20 @@ function formatBrazilDate(value) {
   }).format(date);
 }
 
+function formatBrazilDateTime(value) {
+  if (!value) return "";
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat("pt-BR", {
+    timeZone: "America/Sao_Paulo",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
 function addDays(date, days) {
   const next = new Date(date);
   next.setDate(next.getDate() + days);
@@ -260,6 +274,7 @@ function publicUser(user) {
     name: user.name,
     email: user.email,
     phone: user.phone,
+    intent: user.intent || "general",
     plan: user.plan,
     status: user.status,
     createdAt: user.createdAt,
@@ -269,19 +284,30 @@ function publicUser(user) {
     lastEmailSentAt: user.lastEmailSentAt,
     lastEmailTemplate: user.lastEmailTemplate,
     lastEmailError: user.lastEmailError,
+    lastPaymentLinkSentAt: user.lastPaymentLinkSentAt || "",
+    paymentStatus: user.paymentStatus || "",
     history: user.history || [],
   };
 }
 
 function createUser(input) {
   const now = new Date().toISOString();
+  const intent = ["trial", "founder", "general"].includes(input.intent) ? input.intent : "general";
+  const plan =
+    intent === "trial"
+      ? "teste_7_dias"
+      : intent === "founder"
+        ? "fundador"
+        : String(input.plan || "fundador").trim();
+  const status = intent === "trial" ? "pending_trial" : intent === "founder" ? "pending_founder" : "pending";
   return {
     id: randomUUID(),
     name: String(input.name || "").trim() || "Investidor",
     email: String(input.email || "").trim().toLowerCase(),
     phone: String(input.phone || "").trim(),
-    plan: String(input.plan || "fundador").trim(),
-    status: "pending",
+    intent,
+    plan,
+    status,
     createdAt: now,
     updatedAt: now,
     trialStartAt: "",
@@ -289,7 +315,9 @@ function createUser(input) {
     lastEmailSentAt: "",
     lastEmailTemplate: "",
     lastEmailError: "",
-    history: [`${formatBrazilDate(now)} - Cadastro criado`],
+    lastPaymentLinkSentAt: "",
+    paymentStatus: "",
+    history: [`${formatBrazilDateTime(now)} - Cadastro criado`],
   };
 }
 
@@ -299,15 +327,15 @@ function isTrialPlan(user) {
 
 function statusTemplateEvents(user, nextStatus, previousStatus) {
   if (["approved", "active", "aprovado", "ativo"].includes(nextStatus)) {
-    const events = ["acessoAprovado"];
-    if (isTrialPlan(user) && !(user.trialStartAt || user.trialStartedAt) && previousStatus !== "trial_active") {
-      events.push("testeIniciado");
-    }
-    return events;
+    return ["acessoAprovado"];
   }
   if (["rejected", "refused", "recusado", "rejeitado"].includes(nextStatus)) return ["cadastroRecusado"];
-  if (["trial_active", "teste_ativo", "teste"].includes(nextStatus)) return ["testeIniciado"];
-  if (["trial_ended", "teste_finalizado", "teste_encerrado"].includes(nextStatus)) return ["testeFinalizado"];
+  if (["trial_active", "teste_ativo", "teste"].includes(nextStatus)) {
+    return previousStatus === "trial_active" ? ["testeIniciado"] : ["acessoAprovado", "testeIniciado"];
+  }
+  if (["trial_finished", "trial_ended", "teste_finalizado", "teste_encerrado"].includes(nextStatus)) {
+    return ["testeFinalizado"];
+  }
   if (["archived", "arquivado"].includes(nextStatus)) return ["contaArquivada"];
   if (["inactive", "inativo", "inativado"].includes(nextStatus)) return ["contaInativada"];
   return [];
@@ -316,18 +344,22 @@ function statusTemplateEvents(user, nextStatus, previousStatus) {
 function normalizeStatus(status) {
   const value = String(status || "").trim().toLowerCase();
   const map = {
-    aprovado: "approved",
+    approved: "active",
+    aprovado: "active",
     ativo: "active",
     recusado: "rejected",
     rejeitado: "rejected",
     teste: "trial_active",
     teste_ativo: "trial_active",
-    teste_finalizado: "trial_ended",
-    teste_encerrado: "trial_ended",
+    teste_finalizado: "trial_finished",
+    teste_encerrado: "trial_finished",
+    trial_ended: "trial_finished",
     arquivado: "archived",
     inativo: "inactive",
     inativado: "inactive",
     pendente: "pending",
+    pending_trial: "pending_trial",
+    pending_founder: "pending_founder",
   };
   return map[value] || value || "pending";
 }
@@ -335,11 +367,13 @@ function normalizeStatus(status) {
 function statusLabel(status) {
   return {
     pending: "Pendente",
+    pending_trial: "Teste em análise",
+    pending_founder: "Plano Fundador em análise",
     approved: "Aprovado",
     active: "Ativo",
     rejected: "Recusado",
     trial_active: "Teste grátis ativo",
-    trial_ended: "Teste finalizado",
+    trial_finished: "Teste finalizado",
     archived: "Arquivado",
     inactive: "Inativo",
   }[status] || status;
@@ -359,12 +393,12 @@ async function sendAndRecord(user, event, origin) {
     user.lastEmailTemplate = event;
     user.lastEmailError = "";
     user.history = user.history || [];
-    user.history.unshift(`${formatBrazilDate(user.lastEmailSentAt)} - E-mail enviado: ${eventLabel[event]}`);
+    user.history.unshift(`${formatBrazilDateTime(user.lastEmailSentAt)} - E-mail enviado: ${eventLabel[event]}`);
     return { ok: true, event, templateId };
   } catch (error) {
     user.lastEmailError = error.message || "Falha ao enviar e-mail.";
     user.history = user.history || [];
-    user.history.unshift(`${formatBrazilDate(new Date())} - Falha no e-mail ${eventLabel[event]}: ${user.lastEmailError}`);
+    user.history.unshift(`${formatBrazilDateTime(new Date())} - Falha no e-mail ${eventLabel[event]}: ${user.lastEmailError}`);
     return { ok: false, event, error: user.lastEmailError };
   }
 }
@@ -378,10 +412,10 @@ async function expireFinishedTrials(users, origin) {
       (user.trialEndAt || user.trialEndsAt) &&
       new Date(user.trialEndAt || user.trialEndsAt).getTime() <= now
     ) {
-      user.status = "trial_ended";
+      user.status = "trial_finished";
       user.updatedAt = new Date().toISOString();
       user.history = user.history || [];
-      user.history.unshift(`${formatBrazilDate(user.updatedAt)} - Teste grátis encerrado automaticamente`);
+      user.history.unshift(`${formatBrazilDateTime(user.updatedAt)} - Teste grátis encerrado automaticamente`);
       emailResults.push(await sendAndRecord(user, "testeFinalizado", origin));
     }
   }
@@ -391,6 +425,7 @@ async function expireFinishedTrials(users, origin) {
 async function registerUser(input, origin) {
   return withUsers(async (users) => {
     const user = createUser(input);
+    if (!user.email) throw new Error("E-mail obrigatorio.");
     const emailResult = await sendAndRecord(user, "cadastroRecebido", origin);
     users.unshift(user);
     return { user: publicUser(user), email: emailResult };
@@ -407,27 +442,32 @@ async function changeUserStatus(id, status, origin) {
     user.status = nextStatus;
     user.updatedAt = new Date().toISOString();
     user.history = user.history || [];
-    user.history.unshift(`${formatBrazilDate(user.updatedAt)} - Status alterado para ${statusLabel(nextStatus)}`);
+    user.history.unshift(`${formatBrazilDateTime(user.updatedAt)} - Status alterado para ${statusLabel(nextStatus)}`);
 
     const events = statusTemplateEvents(user, nextStatus, previousStatus);
-    if (events.includes("testeIniciado") && !(user.trialStartAt || user.trialStartedAt)) {
+    if (nextStatus === "active") {
+      user.plan = "fundador";
+    }
+    if (nextStatus === "trial_active") {
+      user.plan = "teste_7_dias";
       applyTrialDates(user);
-      user.status = "trial_active";
       user.updatedAt = new Date().toISOString();
       user.history.unshift(
-        `${formatBrazilDate(user.updatedAt)} - Teste gratuito iniciado ate ${formatBrazilDate(user.trialEndAt)}`,
+        `${formatBrazilDateTime(user.updatedAt)} - Teste gratuito iniciado ate ${formatBrazilDate(user.trialEndAt)}`,
       );
     }
 
     const emailResults = [];
     for (const event of events) emailResults.push(await sendAndRecord(user, event, origin));
+    const emailErrors = emailResults.filter((result) => !result.ok).map((result) => result.error);
+    if (emailErrors.length) user.lastEmailError = emailErrors.join(" | ");
     return { user: publicUser(user), emailResults };
   });
 }
 
 function currentTemplateEvent(user) {
   const events = statusTemplateEvents(user, user.status, user.status);
-  if (user.status === "pending") return "cadastroRecebido";
+  if (["pending", "pending_trial", "pending_founder"].includes(user.status)) return "cadastroRecebido";
   return events.at(-1) || "cadastroRecebido";
 }
 
@@ -438,6 +478,49 @@ async function resendUserEmail(id, origin) {
     const event = currentTemplateEvent(user);
     const email = await sendAndRecord(user, event, origin);
     return { user: publicUser(user), email };
+  });
+}
+
+async function findUserForLogin(email, origin) {
+  const normalizedEmail = String(email || "").trim().toLowerCase();
+  if (!normalizedEmail) throw new Error("Informe o e-mail.");
+  return withUsers(async (users) => {
+    await expireFinishedTrials(users, origin);
+    const user = users.find((item) => String(item.email || "").trim().toLowerCase() === normalizedEmail);
+    if (!user) return null;
+    return {
+      id: user.id,
+      name: user.name,
+      intent: user.intent || "general",
+      status: normalizeStatus(user.status),
+    };
+  });
+}
+
+async function prepareFounderPayment(id) {
+  return withUsers(async (users) => {
+    const user = users.find((item) => item.id === id);
+    if (!user) throw new Error("Usuario nao encontrado.");
+
+    const now = new Date().toISOString();
+    const configuredUrl = process.env.FOUNDER_PAYMENT_URL || process.env.PAYMENT_LINK_URL || "";
+    const phone = String(user.phone || "").replace(/\D/g, "");
+    const whatsappPhone = phone.startsWith("55") ? phone : `55${phone}`;
+    const manualUrl = phone
+      ? `https://wa.me/${whatsappPhone}?text=${encodeURIComponent("Olá! Vamos enviar as instruções do Plano Fundador do FII Select.")}`
+      : "";
+
+    user.lastPaymentLinkSentAt = now;
+    user.paymentStatus = "awaiting_payment";
+    user.updatedAt = now;
+    user.history = user.history || [];
+    user.history.unshift(`${formatBrazilDateTime(now)} - Contato de pagamento do Plano Fundador preparado`);
+
+    return {
+      user: publicUser(user),
+      url: configuredUrl || manualUrl,
+      mode: configuredUrl ? "payment_link" : "whatsapp",
+    };
   });
 }
 
@@ -671,6 +754,7 @@ async function serveStatic(req, res, pathname) {
     "/cadastro": "cadastro.html",
     "/cadastro-teste": "cadastro-teste.html",
     "/cadastro-assinatura": "cadastro-assinatura.html",
+    "/cadastro-confirmado": "cadastro-confirmado.html",
     "/login": "login.html",
     "/login-teste": "login-teste.html",
     "/login-assinatura": "login-assinatura.html",
@@ -754,12 +838,23 @@ const server = http.createServer(async (req, res) => {
         return json(res, 200, { ok: true, ...result });
       }
 
+      const paymentMatch = url.pathname.match(/^\/admin\/api\/users\/([^/]+)\/payment-link$/);
+      if (paymentMatch && req.method === "POST") {
+        const result = await prepareFounderPayment(decodeURIComponent(paymentMatch[1]));
+        return json(res, 200, { ok: true, ...result });
+      }
+
       return json(res, 404, { ok: false, error: "Rota administrativa nao encontrada." });
     }
     if (url.pathname === "/api/users/register" && req.method === "POST") {
       const body = await readJsonBody(req);
       const result = await registerUser(body, origin);
       return json(res, 201, { ok: true, ...result });
+    }
+    if (url.pathname === "/api/users/login-status" && req.method === "POST") {
+      const body = await readJsonBody(req);
+      const user = await findUserForLogin(body.email, origin);
+      return json(res, 200, { ok: true, user });
     }
     if (url.pathname === "/api/health") {
       return json(res, 200, {

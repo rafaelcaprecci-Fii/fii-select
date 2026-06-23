@@ -6178,10 +6178,15 @@ body.admin-dashboard-v2 .customer-add:hover {
 }
 
 body.admin-dashboard-v2 .action-stack p {
-  margin: -4px 0 2px;
+  margin: 2px 0 8px;
   color: #111;
   font-size: 13px;
-  line-height: 1.2;
+  line-height: 1.35;
+}
+
+body.admin-dashboard-v2 .customer-table td small {
+  display: block;
+  margin-top: 4px;
 }
 
 body.admin-dashboard-v2 .status-pending {
