@@ -40,3 +40,5 @@ BRAPI_TOKEN=seu_token node server.mjs
 
 É uma triagem educativa, não uma recomendação de investimento. Para publicar em produção, valide o plano
 da API, os direitos de exibição e o enquadramento regulatório do conteúdo.
+
+Force Railway redeploy - 2026-06-24
