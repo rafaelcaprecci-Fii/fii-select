@@ -542,13 +542,25 @@ async function prepareFounderPayment(id) {
     const user = users.find((item) => item.id === id);
     if (!user) throw new Error("Usuario nao encontrado.");
 
-    const now = new Date().toISOString();
-    const configuredUrl = process.env.FOUNDER_PAYMENT_URL || process.env.PAYMENT_LINK_URL || "";
     const phone = String(user.phone || "").replace(/\D/g, "");
+    if (!phone) throw new Error("Este usuário não possui WhatsApp cadastrado.");
+
+    const paymentUrl =
+      process.env.PAGBANK_PAYMENT_URL ||
+      process.env.FOUNDER_PAYMENT_URL ||
+      process.env.PAYMENT_LINK_URL ||
+      "";
+    if (!paymentUrl.trim()) throw new Error("Link de pagamento PagBank não configurado.");
+
+    const now = new Date().toISOString();
     const whatsappPhone = phone.startsWith("55") ? phone : `55${phone}`;
-    const manualUrl = phone
-      ? `https://wa.me/${whatsappPhone}?text=${encodeURIComponent("Olá! Vamos enviar as instruções do Plano Fundador do FII Select.")}`
-      : "";
+    const message = [
+      `Olá, ${user.name?.trim() || "Investidor"}!`,
+      "Segue o link PagBank para pagamento do Plano Fundador do FII Select:",
+      paymentUrl.trim(),
+      "Após o pagamento, a confirmação e a liberação do acesso serão feitas manualmente.",
+    ].join("\n\n");
+    const whatsappUrl = `https://wa.me/${whatsappPhone}?text=${encodeURIComponent(message)}`;
 
     user.lastPaymentLinkSentAt = now;
     user.paymentStatus = "awaiting_payment";
@@ -558,8 +570,8 @@ async function prepareFounderPayment(id) {
 
     return {
       user: publicUser(user),
-      url: configuredUrl || manualUrl,
-      mode: configuredUrl ? "payment_link" : "whatsapp",
+      url: whatsappUrl,
+      mode: "whatsapp_pagbank",
     };
   });
 }

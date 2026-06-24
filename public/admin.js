@@ -145,18 +145,8 @@ async function updateStatus(status) {
   );
 }
 
-async function resendEmail() {
-  if (!selectedUserId) return showAdminMessage("Selecione um usuário.", true);
-  const response = await fetch(`/admin/api/users/${encodeURIComponent(selectedUserId)}/resend-email`, {
-    method: "POST",
-  });
-  const result = await response.json();
-  if (!response.ok) throw new Error(result.error || "Falha ao reenviar e-mail.");
-  await loadUsers();
-  showAdminMessage(
-    result.email?.ok ? "E-mail reenviado." : `Erro no e-mail: ${result.email?.error || "Falha desconhecida."}`,
-    !result.email?.ok,
-  );
+function showUnavailableMessage() {
+  showAdminMessage("Função temporariamente indisponível.");
 }
 
 async function preparePayment() {
@@ -171,11 +161,7 @@ async function preparePayment() {
     return showAdminMessage("Pagamento registrado, mas o cliente não possui WhatsApp e não há link configurado.", true);
   }
   window.open(result.url, "_blank", "noopener,noreferrer");
-  showAdminMessage(
-    result.mode === "payment_link"
-      ? "Link de pagamento preparado."
-      : "WhatsApp aberto para contato manual sobre o Plano Fundador.",
-  );
+  showAdminMessage("WhatsApp aberto com o link de pagamento PagBank.");
 }
 
 tableBody?.addEventListener("click", (event) => {
@@ -221,8 +207,8 @@ actionsModal?.querySelector(".status-disable")?.addEventListener("click", () => 
 actionsModal?.querySelector(".status-archive")?.addEventListener("click", () => updateStatus("archived"));
 actionsModal?.querySelector(".status-trial")?.addEventListener("click", () => updateStatus("trial_active"));
 actionsModal?.querySelector(".status-end-trial")?.addEventListener("click", () => updateStatus("trial_finished"));
-actionsModal?.querySelector(".status-reject")?.addEventListener("click", () => updateStatus("rejected"));
-actionsModal?.querySelector(".status-resend-email")?.addEventListener("click", resendEmail);
+actionsModal?.querySelector(".status-reject")?.addEventListener("click", showUnavailableMessage);
+actionsModal?.querySelector(".status-resend-email")?.addEventListener("click", showUnavailableMessage);
 actionsModal?.querySelector(".status-payment")?.addEventListener("click", () => {
   preparePayment().catch((error) => showAdminMessage(error.message, true));
 });

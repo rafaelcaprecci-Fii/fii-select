@@ -6187,6 +6187,14 @@ body.admin-dashboard-v2 .customer-add:hover {
   transform: translateY(-1px);
 }
 
+body.admin-dashboard-v2 .action-stack .is-disabled,
+body.admin-dashboard-v2 .action-stack .is-disabled:hover {
+  cursor: not-allowed;
+  filter: grayscale(.75);
+  opacity: .48;
+  transform: none;
+}
+
 body.admin-dashboard-v2 .action-stack p {
   margin: 2px 0 8px;
   color: #111;
