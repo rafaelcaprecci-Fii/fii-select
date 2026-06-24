@@ -1,6 +1,7 @@
 const tableBody = document.querySelector(".customer-table tbody");
 const manualForm = document.querySelector(".manual-form");
 const actionsModal = document.querySelector("#acoes-cliente");
+const saoPauloTimeZone = "America/Sao_Paulo";
 let users = [];
 let selectedUserId = "";
 
@@ -17,9 +18,25 @@ function formatDateTime(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return [value, ""];
   return [
-    new Intl.DateTimeFormat("pt-BR").format(date),
-    `às ${new Intl.DateTimeFormat("pt-BR", { hour: "2-digit", minute: "2-digit" }).format(date)}`,
+    new Intl.DateTimeFormat("pt-BR", { timeZone: saoPauloTimeZone }).format(date),
+    `às ${new Intl.DateTimeFormat("pt-BR", {
+      timeZone: saoPauloTimeZone,
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(date)}`,
   ];
+}
+
+function renderCurrentDate() {
+  updateText(
+    "[data-current-date]",
+    new Intl.DateTimeFormat("pt-BR", {
+      timeZone: saoPauloTimeZone,
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    }).format(new Date()),
+  );
 }
 
 function statusText(status) {
@@ -219,4 +236,5 @@ actionsModal?.querySelector(".status-whatsapp")?.addEventListener("click", (even
   }
 });
 
+renderCurrentDate();
 loadUsers().catch((error) => showAdminMessage(error.message, true));

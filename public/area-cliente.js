@@ -6,16 +6,16 @@ const statusContent = {
     text: "Seu cadastro foi recebido e está em análise. A ferramenta ainda não está liberada.",
   },
   pending_trial: {
-    title: "Minha conta - Teste grátis",
+    title: "Teste grátis",
     sectionTitle: "Teste grátis",
     label: "Teste aguardando liberação",
-    text: "Seu teste grátis está aguardando liberação. Você pode acompanhar o status por aqui.",
+    text: "Seu teste grátis aguarda liberação. O período de 7 dias ainda não começou e a ferramenta permanece bloqueada.",
   },
   pending_founder: {
-    title: "Minha conta - Programa Fundadores",
+    title: "Programa Fundadores",
     sectionTitle: "Plano Fundador",
-    label: "Plano Fundador aguardando liberação",
-    text: "Seu Plano Fundador está aguardando pagamento ou confirmação manual. A ferramenta ainda está bloqueada.",
+    label: "Pagamento/liberação pendente",
+    text: "Realize o pagamento pelo PagBank. O acesso à ferramenta será liberado após a confirmação manual do pagamento.",
   },
   active: {
     title: "Bem-vindo ao FII Select",
@@ -102,8 +102,18 @@ async function loadCustomerArea() {
   setText("[data-user-email]", user.email || "–");
   setText("[data-user-phone]", user.phone || "–");
   setText("[data-user-plan]", String(user.plan || "").includes("teste") ? "Teste grátis" : "Plano Fundador");
+  setText("[data-status-plan]", String(user.plan || "").includes("teste") ? "Teste grátis" : "Programa Fundadores");
   setText("[data-user-status]", content.label);
   setText("[data-status-copy]", content.text);
+  const statusBadge = document.querySelector("[data-user-status]");
+  statusBadge.classList.remove("ok", "danger-badge", "pending-badge");
+  statusBadge.classList.add(
+    canAccessTool
+      ? "ok"
+      : ["rejected", "inactive", "archived", "trial_finished"].includes(user.status)
+        ? "danger-badge"
+        : "pending-badge",
+  );
   const areaHome = document.querySelector("[data-area-home]");
   if (areaHome) areaHome.href = areaPath || "/area-cliente/acompanhamento";
 
@@ -119,6 +129,12 @@ async function loadCustomerArea() {
   const paymentAction = document.querySelector("[data-payment-action]");
   paymentAction.hidden = !(user.status === "pending_founder" && paymentUrl);
   if (paymentUrl) paymentAction.href = paymentUrl;
+  document.querySelector("[data-plan-price-row]").hidden = !["pending_founder", "active"].includes(user.status);
+
+  document.body.classList.toggle(
+    "account-test-page",
+    ["pending_trial", "trial_active", "trial_finished"].includes(user.status),
+  );
 
   const reactivationAction = document.querySelector("[data-reactivation-action]");
   reactivationAction.hidden = !["inactive", "archived"].includes(user.status);

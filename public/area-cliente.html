@@ -4,13 +4,14 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>FII Select | Área do cliente</title>
-    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="/styles.css" />
   </head>
-  <body class="client-page customer-area-page">
+  <body class="client-page account-client-page customer-area-page">
     <header class="app-header">
-      <a class="brand" href="/"><img class="brand-logo" src="ASSETS/logo-header-fii-select.png" alt="FII Select" /></a>
+      <a class="brand" href="/"><img class="brand-logo" src="/ASSETS/logo-header-fii-select.png" alt="FII Select" /></a>
       <nav>
-        <a class="active" data-area-home href="/area-cliente">Minha área</a>
+        <a class="active" data-area-home href="/area-cliente">Conta</a>
+        <a data-status-nav href="/area-cliente">Status</a>
         <a data-tool-nav href="/ferramenta">Ferramenta</a>
       </nav>
       <div class="app-user">
@@ -35,6 +36,8 @@
         <section>
           <h2 data-status-section-title>Status e próximas ações</h2>
           <div class="info-card customer-status-card">
+            <p><strong>Plano</strong><span data-status-plan>–</span></p>
+            <p data-plan-price-row hidden><strong>Valor</strong><span>R$ 49,00/mês</span></p>
             <p><strong>Situação</strong><span class="badge" data-user-status>Carregando...</span></p>
             <p class="customer-status-copy" data-status-copy></p>
             <div data-trial-period hidden>
@@ -50,7 +53,20 @@
         </section>
       </div>
     </main>
-    <script src="client-session.js"></script>
-    <script src="area-cliente.js"></script>
+    <footer class="site-footer app-footer">
+      <div class="footer-brand-social">
+        <a href="/"><img src="/ASSETS/logo-footer-fii-select.png" alt="FII Select" /></a>
+        <div class="footer-social">
+          <a href="https://www.instagram.com/fii.select/" target="_blank" rel="noopener noreferrer" aria-label="Instagram do FII Select"><img src="/ASSETS/insta_icon_2x.svg" alt="" /></a>
+          <a href="https://www.linkedin.com/company/fii-select/about/?viewAsMember=true" target="_blank" rel="noopener noreferrer" aria-label="LinkedIn do FII Select"><img src="/ASSETS/Linkedin_icon_2x.svg" alt="" /></a>
+          <a href="https://wa.me/5511971780101" target="_blank" rel="noopener noreferrer" aria-label="WhatsApp do FII Select"><img src="/ASSETS/icone-home-whatsapp-desktop.svg" alt="" /></a>
+        </div>
+      </div>
+      <span>© TODOS OS DIREITOS RESERVADOS PARA FII SELECT - 2026</span>
+      <span>TERMOS DE USO | POLÍTICA DE PRIVACIDADE | AVISO EDUCACIONAL</span>
+      <a href="https://2bold.com.br/" target="_blank" rel="noopener noreferrer"><img src="/ASSETS/2BOLD_2x.svg" alt="2Bold" /></a>
+    </footer>
+    <script src="/client-session.js"></script>
+    <script src="/area-cliente.js"></script>
   </body>
 </html>

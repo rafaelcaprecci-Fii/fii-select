@@ -65,7 +65,9 @@ const types = {
   ".css": "text/css; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
   ".json": "application/json; charset=utf-8",
+  ".png": "image/png",
   ".svg": "image/svg+xml",
+  ".webp": "image/webp",
 };
 
 function json(res, status, data) {
@@ -267,12 +269,17 @@ function canAccessTool(user) {
 
 function clientAreaPath(user) {
   const status = normalizeStatus(user?.status);
-  if (["pending_trial", "trial_active", "trial_finished"].includes(status)) {
-    return "/area-cliente/teste";
+  if (["payment_pending", "awaiting_payment", "unpaid"].includes(status) || ["awaiting_payment", "unpaid"].includes(user?.paymentStatus)) {
+    return "/status-pendente.html";
   }
-  if (["pending_founder", "active"].includes(status)) {
-    return "/area-cliente/fundador";
-  }
+  if (status === "pending_founder") return "/assinar.html";
+  if (status === "active") return "/status-aprovado.html";
+  if (status === "pending_trial") return "/status-teste-pendente.html";
+  if (status === "trial_active") return "/status-teste-ativo.html";
+  if (status === "trial_finished") return "/teste-encerrado.html";
+  if (status === "inactive") return "/conta-inativa.html";
+  if (status === "canceled") return "/conta-cancelada.html";
+  if (status === "archived") return "/conta-arquivada.html";
   return "/area-cliente/acompanhamento";
 }
 
@@ -495,6 +502,11 @@ function normalizeStatus(status) {
     arquivado: "archived",
     inativo: "inactive",
     inativado: "inactive",
+    cancelado: "canceled",
+    cancelada: "canceled",
+    payment_pending: "payment_pending",
+    awaiting_payment: "awaiting_payment",
+    unpaid: "unpaid",
     pendente: "pending",
     pending_trial: "pending_trial",
     pending_founder: "pending_founder",
@@ -514,6 +526,7 @@ function statusLabel(status) {
     trial_finished: "Teste finalizado",
     archived: "Arquivado",
     inactive: "Inativo",
+    canceled: "Cancelado",
   }[status] || status;
 }
 
@@ -643,6 +656,7 @@ async function findUserForLogin(email, origin) {
       name: user.name,
       intent: user.intent || "general",
       status: normalizeStatus(user.status),
+      paymentStatus: user.paymentStatus || "",
     };
   });
 }
@@ -683,6 +697,20 @@ async function prepareFounderPayment(id) {
       url: whatsappUrl,
       mode: "whatsapp_pagbank",
     };
+  });
+}
+
+async function markFounderPaymentPending(id) {
+  return withUsers(async (users) => {
+    const user = users.find((item) => item.id === id);
+    if (!user) throw new Error("Usuario nao encontrado.");
+    const now = new Date().toISOString();
+    user.paymentStatus = "awaiting_payment";
+    user.lastPaymentLinkSentAt = now;
+    user.updatedAt = now;
+    user.history = user.history || [];
+    user.history.unshift(`${formatBrazilDateTime(now)} - Pagamento do Plano Fundador iniciado`);
+    return publicUser(user);
   });
 }
 
@@ -911,6 +939,29 @@ async function comparison(url) {
 }
 
 async function serveStatic(req, res, pathname) {
+  const protectedClientPages = new Set([
+    "/assinar",
+    "/assinar.html",
+    "/status-pendente",
+    "/status-pendente.html",
+    "/status-aprovado",
+    "/status-aprovado.html",
+    "/conta",
+    "/conta.html",
+    "/conta-inativa",
+    "/conta-inativa.html",
+    "/conta-cancelada.html",
+    "/conta-arquivada.html",
+    "/conta-confirmacao-arquivamento.html",
+    "/conta-confirmacao-cancelamento.html",
+    "/status-teste-pendente",
+    "/status-teste-pendente.html",
+    "/status-teste-ativo",
+    "/status-teste-ativo.html",
+    "/teste-encerrado",
+    "/teste-encerrado.html",
+    "/conta-teste.html",
+  ]);
   const routeMap = {
     "/": "index.html",
     "/cadastro": "cadastro.html",
@@ -941,6 +992,10 @@ async function serveStatic(req, res, pathname) {
     "/admin/usuarios": "admin.html",
   };
   if (protectedAdminRoutes.has(pathname) && !requireAdminAuth(req, res)) return;
+  if (protectedClientPages.has(pathname)) {
+    const user = await sessionUser(req, originFrom(req));
+    if (!user) return redirect(res, "/login.html");
+  }
   if (
     [
       "/area-cliente",
@@ -1071,6 +1126,33 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === "/api/users/logout" && req.method === "POST") {
       clearClientSession(res);
       return json(res, 200, { ok: true });
+    }
+    if (url.pathname === "/api/users/account-status" && req.method === "POST") {
+      const session = await sessionUser(req, origin);
+      if (!session) return json(res, 401, { ok: false, error: "Sessão não encontrada." });
+      const body = await readJsonBody(req);
+      if (!["archived", "canceled"].includes(body.status)) {
+        return json(res, 400, { ok: false, error: "Status de conta inválido." });
+      }
+      const result = await changeUserStatus(session.id, body.status, origin);
+      return json(res, 200, { ok: true, ...result });
+    }
+    if (url.pathname === "/api/users/payment-start" && req.method === "POST") {
+      const session = await sessionUser(req, origin);
+      if (!session) return json(res, 401, { ok: false, error: "Sessão não encontrada." });
+      if (session.status !== "pending_founder") {
+        return json(res, 400, { ok: false, error: "Pagamento indisponível para este cadastro." });
+      }
+      const user = await markFounderPaymentPending(session.id);
+      return json(res, 200, {
+        ok: true,
+        user,
+        paymentUrl:
+          process.env.PAGBANK_PAYMENT_URL ||
+          process.env.FOUNDER_PAYMENT_URL ||
+          process.env.PAYMENT_LINK_URL ||
+          defaultPagBankPaymentUrl,
+      });
     }
     if (url.pathname === "/api/health") {
       return json(res, 200, {

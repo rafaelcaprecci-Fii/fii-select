@@ -1846,6 +1846,10 @@ body.admin-page {
   background: var(--danger);
 }
 
+.pending-badge {
+  background: #d39b00;
+}
+
 .inline-message {
   display: block !important;
   color: var(--muted);
@@ -3415,6 +3419,10 @@ body.client-page .app-header [hidden] {
 
 body.client-page .customer-area-actions .text-link {
   text-align: center;
+}
+
+body.client-page .customer-area-actions .cta {
+  color: #fff;
 }
 
 body.client-page .app-footer {
