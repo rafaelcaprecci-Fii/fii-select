@@ -3395,6 +3395,28 @@ body.client-page .status-actions p {
   font-weight: 400;
 }
 
+body.client-page .customer-status-copy {
+  display: block;
+  margin: 20px 0;
+  color: rgba(0, 0, 0, .72);
+  line-height: 1.5;
+}
+
+body.client-page .customer-area-actions {
+  display: grid;
+  gap: 12px;
+  margin-top: 22px;
+}
+
+body.client-page .customer-area-actions [hidden],
+body.client-page .app-header [hidden] {
+  display: none;
+}
+
+body.client-page .customer-area-actions .text-link {
+  text-align: center;
+}
+
 body.client-page .app-footer {
   display: grid;
   grid-template-columns: 1fr auto auto 1fr;

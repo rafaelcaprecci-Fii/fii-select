@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FII Select | Área do cliente</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body class="client-page customer-area-page">
+    <header class="app-header">
+      <a class="brand" href="/"><img class="brand-logo" src="ASSETS/logo-header-fii-select.png" alt="FII Select" /></a>
+      <nav>
+        <a class="active" href="/area-cliente">Minha área</a>
+        <a data-tool-nav href="/ferramenta">Ferramenta</a>
+      </nav>
+      <div class="app-user">
+        <span class="user-initial" data-user-initial>–</span>
+        <a class="logout" href="/">Sair</a>
+      </div>
+    </header>
+
+    <main class="account-page customer-area">
+      <h1>Área do cliente</h1>
+      <div class="account-grid">
+        <section>
+          <h2>Seu cadastro</h2>
+          <div class="info-card">
+            <p><strong>Nome</strong><span data-user-name>Carregando...</span></p>
+            <p><strong>E-mail</strong><span data-user-email>–</span></p>
+            <p><strong>WhatsApp</strong><span data-user-phone>–</span></p>
+            <p><strong>Plano</strong><span data-user-plan>–</span></p>
+          </div>
+        </section>
+
+        <section>
+          <h2>Status e próximas ações</h2>
+          <div class="info-card customer-status-card">
+            <p><strong>Situação</strong><span class="badge" data-user-status>Carregando...</span></p>
+            <p class="customer-status-copy" data-status-copy></p>
+            <div class="customer-area-actions">
+              <a class="cta cta-gold small-cta" data-tool-action href="/ferramenta">Acessar ferramenta</a>
+              <a class="cta cta-gold small-cta" data-payment-action target="_blank" rel="noopener noreferrer">Ir para pagamento</a>
+              <a class="text-link" data-reactivation-action href="https://wa.me/5511971780101?text=Ol%C3%A1.%20Quero%20reativar%20meu%20acesso%20ao%20FII%20Select." target="_blank" rel="noopener noreferrer">Solicitar reativação</a>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+    <script src="client-session.js"></script>
+    <script src="area-cliente.js"></script>
+  </body>
+</html>

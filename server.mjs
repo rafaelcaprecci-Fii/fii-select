@@ -1,5 +1,5 @@
 import http from "node:http";
-import { randomUUID, timingSafeEqual } from "node:crypto";
+import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { extname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -14,6 +14,9 @@ const host = process.env.HOST || "127.0.0.1";
 const brapiToken = process.env.BRAPI_TOKEN || "";
 const adminUser = process.env.ADMIN_USER || "";
 const adminPassword = process.env.ADMIN_PASSWORD || "";
+const clientSessionSecret = process.env.CLIENT_SESSION_SECRET || adminPassword || randomUUID();
+const clientSessionCookie = "fii_select_session";
+const clientSessionMaxAge = 60 * 60 * 24 * 30;
 const protectedAdminRoutes = new Set(["/admin", "/admin/login", "/admin/usuarios", "/admin/testar-email"]);
 const protectedAdminApiPrefix = "/admin/api/";
 const platformContactUrl =
@@ -166,18 +169,99 @@ function nonEmptyString(value, fallback = "") {
 }
 
 function brevoTemplateParams(user, origin) {
-  const baseUrl = nonEmptyString(origin, "https://fiiselect.com.br").replace(/\/+$/, "");
+  const baseUrl = nonEmptyString(
+    process.env.BASE_URL,
+    nonEmptyString(origin, "https://fiiselect.com.br"),
+  ).replace(/\/+$/, "");
   const name = nonEmptyString(user.name, "Investidor");
   const email = nonEmptyString(user.email);
   return {
     NOME: name,
     EMAIL: email,
+    LINK_LOGIN: nonEmptyString(user.linkLogin, `${baseUrl}/entrar`),
     LINK_ACESSO: nonEmptyString(user.linkAcesso, baseUrl),
     LINK_PLANOS: nonEmptyString(user.linkPlanos, `${baseUrl}/assinar`),
     LINK_REATIVACAO: nonEmptyString(user.linkReativacao, platformContactUrl),
     DATA_INICIO_TESTE: formatBrazilDate(user.trialStartAt || user.trialStartedAt),
     DATA_FIM_TESTE: formatBrazilDate(user.trialEndAt || user.trialEndsAt),
   };
+}
+
+function parseCookies(req) {
+  return Object.fromEntries(
+    String(req.headers.cookie || "")
+      .split(";")
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .map((part) => {
+        const separator = part.indexOf("=");
+        return separator === -1
+          ? [decodeURIComponent(part), ""]
+          : [decodeURIComponent(part.slice(0, separator)), decodeURIComponent(part.slice(separator + 1))];
+      }),
+  );
+}
+
+function sessionSignature(value) {
+  return createHmac("sha256", clientSessionSecret).update(value).digest("base64url");
+}
+
+function createClientSession(userId) {
+  if (!clientSessionSecret) throw new Error("Sessão do cliente indisponível.");
+  const payload = `${userId}.${Date.now()}`;
+  return `${payload}.${sessionSignature(payload)}`;
+}
+
+function readClientSession(req) {
+  if (!clientSessionSecret) return "";
+  const token = parseCookies(req)[clientSessionCookie] || "";
+  const parts = token.split(".");
+  if (parts.length !== 3) return "";
+  const [userId, issuedAt, signature] = parts;
+  const payload = `${userId}.${issuedAt}`;
+  if (!safeCompare(signature, sessionSignature(payload))) return "";
+  if (!Number.isFinite(Number(issuedAt)) || Date.now() - Number(issuedAt) > clientSessionMaxAge * 1000) {
+    return "";
+  }
+  return userId;
+}
+
+function setClientSession(res, req, userId) {
+  const secure = String(req.headers["x-forwarded-proto"] || "").split(",")[0].trim() === "https";
+  res.setHeader(
+    "Set-Cookie",
+    `${clientSessionCookie}=${encodeURIComponent(createClientSession(userId))}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${clientSessionMaxAge}${secure ? "; Secure" : ""}`,
+  );
+}
+
+function clearClientSession(res) {
+  res.setHeader(
+    "Set-Cookie",
+    `${clientSessionCookie}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`,
+  );
+}
+
+function redirect(res, location) {
+  res.writeHead(302, { Location: location, "Cache-Control": "no-store" });
+  res.end();
+}
+
+async function sessionUser(req, origin) {
+  const userId = readClientSession(req);
+  if (!userId) return null;
+  return withUsers(async (users) => {
+    await expireFinishedTrials(users, origin);
+    return users.find((user) => user.id === userId) || null;
+  });
+}
+
+function canAccessTool(user) {
+  const blockedPayment = ["awaiting_payment", "unpaid"].includes(user?.paymentStatus);
+  return Boolean(
+    user &&
+      !blockedPayment &&
+      ["active", "trial_active"].includes(normalizeStatus(user.status)),
+  );
 }
 
 function brevoTemplatePayload({ user, event, origin, emailFrom }) {
@@ -494,9 +578,11 @@ async function changeUserStatus(id, status, origin) {
     const events = statusTemplateEvents(nextStatus);
     if (nextStatus === "active") {
       user.plan = "fundador";
+      user.paymentStatus = "confirmed";
     }
     if (nextStatus === "trial_active") {
       user.plan = "teste_7_dias";
+      user.paymentStatus = "";
       applyTrialDates(user);
       user.updatedAt = new Date().toISOString();
       user.history.unshift(
@@ -817,6 +903,7 @@ async function serveStatic(req, res, pathname) {
     "/cadastro-assinatura": "cadastro-assinatura.html",
     "/cadastro-confirmado": "cadastro-confirmado.html",
     "/login": "login.html",
+    "/entrar": "login.html",
     "/login-teste": "login-teste.html",
     "/login-assinatura": "login-assinatura.html",
     "/confirmacao-email-teste": "confirmacao-email-teste.html",
@@ -830,12 +917,20 @@ async function serveStatic(req, res, pathname) {
     "/status-aprovado": "status-aprovado.html",
     "/conta": "conta.html",
     "/conta-inativa": "conta-inativa.html",
+    "/area-cliente": "area-cliente.html",
     "/ferramenta": "ferramenta.html",
     "/admin/login": "admin-login.html",
     "/admin": "admin.html",
     "/admin/usuarios": "admin.html",
   };
   if (protectedAdminRoutes.has(pathname) && !requireAdminAuth(req, res)) return;
+  if (["/area-cliente", "/area-cliente.html", "/ferramenta", "/ferramenta.html"].includes(pathname)) {
+    const user = await sessionUser(req, originFrom(req));
+    if (!user) return redirect(res, "/entrar");
+    if (["/ferramenta", "/ferramenta.html"].includes(pathname) && !canAccessTool(user)) {
+      return redirect(res, "/area-cliente");
+    }
+  }
 
   const relative = routeMap[pathname] || pathname.slice(1);
   const file = normalize(join(publicDir, relative));
@@ -923,7 +1018,27 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === "/api/users/login-status" && req.method === "POST") {
       const body = await readJsonBody(req);
       const user = await findUserForLogin(body.email, origin);
+      if (user) setClientSession(res, req, user.id);
       return json(res, 200, { ok: true, user });
+    }
+    if (url.pathname === "/api/users/me" && req.method === "GET") {
+      const user = await sessionUser(req, origin);
+      if (!user) return json(res, 401, { ok: false, error: "Sessão não encontrada." });
+      const paymentUrl =
+        process.env.PAGBANK_PAYMENT_URL ||
+        process.env.FOUNDER_PAYMENT_URL ||
+        process.env.PAYMENT_LINK_URL ||
+        "";
+      return json(res, 200, {
+        ok: true,
+        user: publicUser(user),
+        canAccessTool: canAccessTool(user),
+        paymentUrl: user.status === "pending_founder" ? paymentUrl : "",
+      });
+    }
+    if (url.pathname === "/api/users/logout" && req.method === "POST") {
+      clearClientSession(res);
+      return json(res, 200, { ok: true });
     }
     if (url.pathname === "/api/health") {
       return json(res, 200, {
@@ -932,9 +1047,16 @@ const server = http.createServer(async (req, res) => {
         mode: brapiToken ? "token configurado" : "sandbox",
       });
     }
-    if (url.pathname === "/api/valuation") return json(res, 200, await valuation(url));
-    if (url.pathname === "/api/suggestions") return json(res, 200, suggestions(url));
-    if (url.pathname === "/api/comparison") return json(res, 200, await comparison(url));
+    if (["/api/valuation", "/api/suggestions", "/api/comparison"].includes(url.pathname)) {
+      const user = await sessionUser(req, origin);
+      if (!user) return json(res, 401, { error: "Faça login para acessar a ferramenta." });
+      if (!canAccessTool(user)) {
+        return json(res, 403, { error: "A ferramenta ainda não está liberada para este cadastro." });
+      }
+      if (url.pathname === "/api/valuation") return json(res, 200, await valuation(url));
+      if (url.pathname === "/api/suggestions") return json(res, 200, suggestions(url));
+      return json(res, 200, await comparison(url));
+    }
     if (url.pathname === "/api/demo-video" && req.method === "POST") {
       const chunks = [];
       let size = 0;
