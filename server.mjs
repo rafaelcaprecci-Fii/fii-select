@@ -21,6 +21,7 @@ const protectedAdminRoutes = new Set(["/admin", "/admin/login", "/admin/usuarios
 const protectedAdminApiPrefix = "/admin/api/";
 const platformContactUrl =
   "https://wa.me/5511971780101?text=Ol%C3%A1.%20Quero%20reativar%20meu%20acesso%20ao%20FII%20Select.";
+const defaultPagBankPaymentUrl = "https://pag.ae/81R2Xoquo";
 const templateEnvByEvent = {
   cadastroRecebidoTeste: "BREVO_TEMPLATE_CADASTRO_RECEBIDO_TESTE",
   cadastroRecebidoFundador: "BREVO_TEMPLATE_CADASTRO_RECEBIDO_FUNDADOR",
@@ -178,8 +179,8 @@ function brevoTemplateParams(user, origin) {
   return {
     NOME: name,
     EMAIL: email,
-    LINK_LOGIN: nonEmptyString(user.linkLogin, `${baseUrl}/entrar`),
-    LINK_ACESSO: nonEmptyString(user.linkAcesso, baseUrl),
+    LINK_LOGIN: nonEmptyString(user.linkLogin, `${baseUrl}/login.html`),
+    LINK_ACESSO: nonEmptyString(user.linkAcesso, `${baseUrl}/area-cliente`),
     LINK_PLANOS: nonEmptyString(user.linkPlanos, `${baseUrl}/assinar`),
     LINK_REATIVACAO: nonEmptyString(user.linkReativacao, platformContactUrl),
     DATA_INICIO_TESTE: formatBrazilDate(user.trialStartAt || user.trialStartedAt),
@@ -270,6 +271,9 @@ function brevoTemplatePayload({ user, event, origin, emailFrom }) {
 
   const templateId = Number(requireEnv(templateEnv));
   const params = brevoTemplateParams(user, origin);
+  if (["cadastroRecebidoTeste", "cadastroRecebidoFundador"].includes(event)) {
+    delete params.LINK_ACESSO;
+  }
   if (!params.EMAIL) throw new Error("E-mail do usuario vazio. Envio nao realizado.");
   if (!Number.isInteger(templateId) || templateId <= 0) {
     throw new Error(`Template Brevo invalido para ${templateEnv}.`);
@@ -644,7 +648,7 @@ async function prepareFounderPayment(id) {
       process.env.PAGBANK_PAYMENT_URL ||
       process.env.FOUNDER_PAYMENT_URL ||
       process.env.PAYMENT_LINK_URL ||
-      "";
+      defaultPagBankPaymentUrl;
     if (!paymentUrl.trim()) throw new Error("Link de pagamento PagBank não configurado.");
 
     const now = new Date().toISOString();
@@ -903,7 +907,6 @@ async function serveStatic(req, res, pathname) {
     "/cadastro-assinatura": "cadastro-assinatura.html",
     "/cadastro-confirmado": "cadastro-confirmado.html",
     "/login": "login.html",
-    "/entrar": "login.html",
     "/login-teste": "login-teste.html",
     "/login-assinatura": "login-assinatura.html",
     "/confirmacao-email-teste": "confirmacao-email-teste.html",
@@ -926,7 +929,7 @@ async function serveStatic(req, res, pathname) {
   if (protectedAdminRoutes.has(pathname) && !requireAdminAuth(req, res)) return;
   if (["/area-cliente", "/area-cliente.html", "/ferramenta", "/ferramenta.html"].includes(pathname)) {
     const user = await sessionUser(req, originFrom(req));
-    if (!user) return redirect(res, "/entrar");
+    if (!user) return redirect(res, "/login.html");
     if (["/ferramenta", "/ferramenta.html"].includes(pathname) && !canAccessTool(user)) {
       return redirect(res, "/area-cliente");
     }
@@ -1028,7 +1031,7 @@ const server = http.createServer(async (req, res) => {
         process.env.PAGBANK_PAYMENT_URL ||
         process.env.FOUNDER_PAYMENT_URL ||
         process.env.PAYMENT_LINK_URL ||
-        "";
+        defaultPagBankPaymentUrl;
       return json(res, 200, {
         ok: true,
         user: publicUser(user),

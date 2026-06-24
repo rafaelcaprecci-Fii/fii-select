@@ -50,10 +50,17 @@ function setText(selector, value) {
   if (element) element.textContent = value;
 }
 
+function formatDate(value) {
+  if (!value) return "–";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "–";
+  return new Intl.DateTimeFormat("pt-BR").format(date);
+}
+
 async function loadCustomerArea() {
   const response = await fetch("/api/users/me");
   const result = await response.json();
-  if (response.status === 401) return window.location.replace("/entrar");
+  if (response.status === 401) return window.location.replace("/login.html");
   if (!response.ok) throw new Error(result.error || "Não foi possível carregar sua área.");
 
   const { user, canAccessTool, paymentUrl } = result;
@@ -70,6 +77,11 @@ async function loadCustomerArea() {
   setText("[data-user-plan]", String(user.plan || "").includes("teste") ? "Teste grátis" : "Plano Fundador");
   setText("[data-user-status]", content.label);
   setText("[data-status-copy]", content.text);
+
+  const trialPeriod = document.querySelector("[data-trial-period]");
+  trialPeriod.hidden = user.status !== "trial_active";
+  setText("[data-trial-start]", formatDate(user.trialStartAt));
+  setText("[data-trial-end]", formatDate(user.trialEndAt));
 
   document.querySelectorAll("[data-tool-action], [data-tool-nav]").forEach((element) => {
     element.hidden = !canAccessTool;
