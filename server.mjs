@@ -19,22 +19,24 @@ const protectedAdminApiPrefix = "/admin/api/";
 const platformContactUrl =
   "https://wa.me/5511971780101?text=Ol%C3%A1.%20Quero%20reativar%20meu%20acesso%20ao%20FII%20Select.";
 const templateEnvByEvent = {
-  cadastroRecebido: "BREVO_TEMPLATE_CADASTRO_RECEBIDO",
-  acessoAprovado: "BREVO_TEMPLATE_ACESSO_APROVADO",
-  cadastroRecusado: "BREVO_TEMPLATE_CADASTRO_RECUSADO",
-  testeIniciado: "BREVO_TEMPLATE_TESTE_INICIADO",
+  cadastroRecebidoTeste: "BREVO_TEMPLATE_CADASTRO_RECEBIDO_TESTE",
+  cadastroRecebidoFundador: "BREVO_TEMPLATE_CADASTRO_RECEBIDO_FUNDADOR",
+  cadastroNaoAprovado: "BREVO_TEMPLATE_CADASTRO_NAO_APROVADO",
   testeFinalizado: "BREVO_TEMPLATE_TESTE_FINALIZADO",
   contaArquivada: "BREVO_TEMPLATE_CONTA_ARQUIVADA",
   contaInativada: "BREVO_TEMPLATE_CONTA_INATIVADA",
+  acessoLiberadoFundador: "BREVO_TEMPLATE_ACESSO_LIBERADO_FUNDADOR",
+  acessoLiberadoTeste: "BREVO_TEMPLATE_ACESSO_LIBERADO_TESTE",
 };
 const eventLabel = {
-  cadastroRecebido: "Cadastro recebido",
-  acessoAprovado: "Acesso aprovado",
-  cadastroRecusado: "Cadastro recusado",
-  testeIniciado: "Teste de 7 dias começou",
+  cadastroRecebidoTeste: "Cadastro de teste recebido",
+  cadastroRecebidoFundador: "Cadastro do Plano Fundador recebido",
+  cadastroNaoAprovado: "Cadastro não aprovado",
   testeFinalizado: "Teste de 7 dias terminou",
   contaArquivada: "Conta arquivada",
   contaInativada: "Conta inativada",
+  acessoLiberadoFundador: "Acesso ao Plano Fundador liberado",
+  acessoLiberadoTeste: "Acesso ao teste de 7 dias liberado",
 };
 const sandboxTickers = new Set(["MXRF11", "HGLG11"]);
 const cache = new Map();
@@ -352,17 +354,23 @@ function createUser(input) {
   };
 }
 
-function isTrialPlan(user) {
-  return String(user.plan || "").toLowerCase().includes("teste");
+function registrationTemplateEvent(user) {
+  const isTrial =
+    user.intent === "trial" ||
+    user.status === "pending_trial" ||
+    String(user.plan || "").toLowerCase().includes("teste");
+  return isTrial ? "cadastroRecebidoTeste" : "cadastroRecebidoFundador";
 }
 
-function statusTemplateEvents(user, nextStatus, previousStatus) {
+function statusTemplateEvents(nextStatus) {
   if (["approved", "active", "aprovado", "ativo"].includes(nextStatus)) {
-    return ["acessoAprovado"];
+    return ["acessoLiberadoFundador"];
   }
-  if (["rejected", "refused", "recusado", "rejeitado"].includes(nextStatus)) return ["cadastroRecusado"];
+  if (["rejected", "refused", "recusado", "rejeitado"].includes(nextStatus)) {
+    return ["cadastroNaoAprovado"];
+  }
   if (["trial_active", "teste_ativo", "teste"].includes(nextStatus)) {
-    return previousStatus === "trial_active" ? ["testeIniciado"] : ["acessoAprovado", "testeIniciado"];
+    return ["acessoLiberadoTeste"];
   }
   if (["trial_finished", "trial_ended", "teste_finalizado", "teste_encerrado"].includes(nextStatus)) {
     return ["testeFinalizado"];
@@ -466,7 +474,7 @@ async function registerUser(input, origin) {
     }
 
     const user = createUser(validatedInput);
-    const emailResult = await sendAndRecord(user, "cadastroRecebido", origin);
+    const emailResult = await sendAndRecord(user, registrationTemplateEvent(user), origin);
     users.unshift(user);
     return { user: publicUser(user), email: emailResult };
   });
@@ -477,14 +485,13 @@ async function changeUserStatus(id, status, origin) {
     const user = users.find((item) => item.id === id);
     if (!user) throw new Error("Usuario nao encontrado.");
 
-    const previousStatus = user.status;
     const nextStatus = normalizeStatus(status);
     user.status = nextStatus;
     user.updatedAt = new Date().toISOString();
     user.history = user.history || [];
     user.history.unshift(`${formatBrazilDateTime(user.updatedAt)} - Status alterado para ${statusLabel(nextStatus)}`);
 
-    const events = statusTemplateEvents(user, nextStatus, previousStatus);
+    const events = statusTemplateEvents(nextStatus);
     if (nextStatus === "active") {
       user.plan = "fundador";
     }
@@ -506,9 +513,11 @@ async function changeUserStatus(id, status, origin) {
 }
 
 function currentTemplateEvent(user) {
-  const events = statusTemplateEvents(user, user.status, user.status);
-  if (["pending", "pending_trial", "pending_founder"].includes(user.status)) return "cadastroRecebido";
-  return events.at(-1) || "cadastroRecebido";
+  const events = statusTemplateEvents(user.status);
+  if (["pending", "pending_trial", "pending_founder"].includes(user.status)) {
+    return registrationTemplateEvent(user);
+  }
+  return events.at(-1) || registrationTemplateEvent(user);
 }
 
 async function resendUserEmail(id, origin) {
