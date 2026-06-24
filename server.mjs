@@ -158,29 +158,49 @@ function addDays(date, days) {
   return next;
 }
 
-function userParams(user, origin) {
-  const baseUrl = origin || "https://fiiselect.com.br";
-  const accessLink = user.linkAcesso || baseUrl;
+function nonEmptyString(value, fallback = "") {
+  const normalized = String(value || "").trim();
+  return normalized || fallback;
+}
+
+function brevoTemplateParams(user, origin) {
+  const baseUrl = nonEmptyString(origin, "https://fiiselect.com.br").replace(/\/+$/, "");
+  const name = nonEmptyString(user.name, "Investidor");
+  const email = nonEmptyString(user.email);
   return {
-    NOME: user.name?.trim() || "Investidor",
-    EMAIL: user.email?.trim() || "",
-    LINK_ACESSO: accessLink,
-    LINK_PLANOS: user.linkPlanos || `${baseUrl}/assinar`,
-    LINK_REATIVACAO: user.linkReativacao || platformContactUrl,
+    NOME: name,
+    EMAIL: email,
+    LINK_ACESSO: nonEmptyString(user.linkAcesso, baseUrl),
+    LINK_PLANOS: nonEmptyString(user.linkPlanos, `${baseUrl}/assinar`),
+    LINK_REATIVACAO: nonEmptyString(user.linkReativacao, platformContactUrl),
     DATA_INICIO_TESTE: formatBrazilDate(user.trialStartAt || user.trialStartedAt),
     DATA_FIM_TESTE: formatBrazilDate(user.trialEndAt || user.trialEndsAt),
+  };
+}
+
+function brevoTemplatePayload({ user, event, origin, emailFrom }) {
+  const templateEnv = templateEnvByEvent[event];
+  if (!templateEnv) throw new Error(`Evento Brevo desconhecido: ${event}.`);
+
+  const templateId = Number(requireEnv(templateEnv));
+  const params = brevoTemplateParams(user, origin);
+  if (!params.EMAIL) throw new Error("E-mail do usuario vazio. Envio nao realizado.");
+  if (!Number.isInteger(templateId) || templateId <= 0) {
+    throw new Error(`Template Brevo invalido para ${templateEnv}.`);
+  }
+
+  return {
+    sender: parseEmailFrom(emailFrom),
+    to: [{ email: params.EMAIL, name: params.NOME }],
+    templateId,
+    params,
   };
 }
 
 async function sendBrevoTransactionalEmail({ user, event, origin }) {
   const brevoApiKey = requireEnv("BREVO_API_KEY");
   const emailFrom = requireEnv("EMAIL_FROM");
-  const templateId = Number(requireEnv(templateEnvByEvent[event]));
-  const email = user.email?.trim();
-  if (!email) throw new Error("E-mail do usuario vazio. Envio nao realizado.");
-  if (!Number.isInteger(templateId) || templateId <= 0) {
-    throw new Error(`Template Brevo invalido para ${templateEnvByEvent[event]}.`);
-  }
+  const payload = brevoTemplatePayload({ user, event, origin, emailFrom });
 
   const response = await fetch("https://api.brevo.com/v3/smtp/email", {
     method: "POST",
@@ -188,12 +208,7 @@ async function sendBrevoTransactionalEmail({ user, event, origin }) {
       "api-key": brevoApiKey,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      sender: parseEmailFrom(emailFrom),
-      to: [{ email, name: user.name?.trim() || "Investidor" }],
-      templateId,
-      params: userParams(user, origin),
-    }),
+    body: JSON.stringify(payload),
   });
 
   if (!response.ok) {
@@ -201,7 +216,7 @@ async function sendBrevoTransactionalEmail({ user, event, origin }) {
     throw new Error(`Brevo API respondeu ${response.status}: ${message.slice(0, 180)}`);
   }
 
-  return { templateId };
+  return { templateId: payload.templateId };
 }
 
 async function sendBrevoApiTestEmail() {
