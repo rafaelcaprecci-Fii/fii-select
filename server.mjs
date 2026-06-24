@@ -180,7 +180,7 @@ function brevoTemplateParams(user, origin) {
     NOME: name,
     EMAIL: email,
     LINK_LOGIN: nonEmptyString(user.linkLogin, `${baseUrl}/login.html`),
-    LINK_ACESSO: nonEmptyString(user.linkAcesso, `${baseUrl}/area-cliente`),
+    LINK_ACESSO: nonEmptyString(user.linkAcesso, `${baseUrl}${clientAreaPath(user)}`),
     LINK_PLANOS: nonEmptyString(user.linkPlanos, `${baseUrl}/assinar`),
     LINK_REATIVACAO: nonEmptyString(user.linkReativacao, platformContactUrl),
     DATA_INICIO_TESTE: formatBrazilDate(user.trialStartAt || user.trialStartedAt),
@@ -263,6 +263,17 @@ function canAccessTool(user) {
       !blockedPayment &&
       ["active", "trial_active"].includes(normalizeStatus(user.status)),
   );
+}
+
+function clientAreaPath(user) {
+  const status = normalizeStatus(user?.status);
+  if (["pending_trial", "trial_active", "trial_finished"].includes(status)) {
+    return "/area-cliente/teste";
+  }
+  if (["pending_founder", "active"].includes(status)) {
+    return "/area-cliente/fundador";
+  }
+  return "/area-cliente/acompanhamento";
 }
 
 function brevoTemplatePayload({ user, event, origin, emailFrom }) {
@@ -921,17 +932,30 @@ async function serveStatic(req, res, pathname) {
     "/conta": "conta.html",
     "/conta-inativa": "conta-inativa.html",
     "/area-cliente": "area-cliente.html",
+    "/area-cliente/fundador": "area-cliente.html",
+    "/area-cliente/teste": "area-cliente.html",
+    "/area-cliente/acompanhamento": "area-cliente.html",
     "/ferramenta": "ferramenta.html",
     "/admin/login": "admin-login.html",
     "/admin": "admin.html",
     "/admin/usuarios": "admin.html",
   };
   if (protectedAdminRoutes.has(pathname) && !requireAdminAuth(req, res)) return;
-  if (["/area-cliente", "/area-cliente.html", "/ferramenta", "/ferramenta.html"].includes(pathname)) {
+  if (
+    [
+      "/area-cliente",
+      "/area-cliente.html",
+      "/area-cliente/fundador",
+      "/area-cliente/teste",
+      "/area-cliente/acompanhamento",
+      "/ferramenta",
+      "/ferramenta.html",
+    ].includes(pathname)
+  ) {
     const user = await sessionUser(req, originFrom(req));
     if (!user) return redirect(res, "/login.html");
     if (["/ferramenta", "/ferramenta.html"].includes(pathname) && !canAccessTool(user)) {
-      return redirect(res, "/area-cliente");
+      return redirect(res, clientAreaPath(user));
     }
   }
 
@@ -1022,7 +1046,11 @@ const server = http.createServer(async (req, res) => {
       const body = await readJsonBody(req);
       const user = await findUserForLogin(body.email, origin);
       if (user) setClientSession(res, req, user.id);
-      return json(res, 200, { ok: true, user });
+      return json(res, 200, {
+        ok: true,
+        user,
+        redirectTo: user ? clientAreaPath(user) : "",
+      });
     }
     if (url.pathname === "/api/users/me" && req.method === "GET") {
       const user = await sessionUser(req, origin);
@@ -1036,6 +1064,7 @@ const server = http.createServer(async (req, res) => {
         ok: true,
         user: publicUser(user),
         canAccessTool: canAccessTool(user),
+        areaPath: clientAreaPath(user),
         paymentUrl: user.status === "pending_founder" ? paymentUrl : "",
       });
     }

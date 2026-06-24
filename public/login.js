@@ -37,7 +37,7 @@ loginForm?.addEventListener("submit", async (event) => {
     if (!response.ok) throw new Error(result.error || "Não foi possível consultar o cadastro.");
     if (!result.user) return renderView("not_found");
 
-    window.location.href = "/area-cliente";
+    window.location.href = result.redirectTo || "/area-cliente/acompanhamento";
   } catch (error) {
     let message = loginForm.querySelector(".form-message");
     if (!message) {
