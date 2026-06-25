@@ -75,6 +75,14 @@ function json(res, status, data) {
   res.end(JSON.stringify(data));
 }
 
+function redirect(res, location) {
+  res.writeHead(302, {
+    Location: location,
+    "Cache-Control": "no-store",
+  });
+  res.end();
+}
+
 function safeCompare(a, b) {
   const left = Buffer.from(a);
   const right = Buffer.from(b);
@@ -881,6 +889,18 @@ async function serveStatic(req, res, pathname) {
     "/admin/usuarios": "admin.html",
   };
   if (protectedAdminRoutes.has(pathname) && !requireAdminAuth(req, res)) return;
+  if (["/assinar", "/assinar.html"].includes(pathname)) {
+    const user = await sessionUser(req, originFrom(req));
+    if (!user || normalizeStatus(user.status) !== "pending_founder") {
+      return redirect(res, "/login.html");
+    }
+  }
+  if (["/ferramenta", "/ferramenta.html"].includes(pathname)) {
+    const user = await sessionUser(req, originFrom(req));
+    if (normalizeStatus(user?.status) === "pending_founder") {
+      return redirect(res, "/assinar.html");
+    }
+  }
 
   const relative = routeMap[pathname] || pathname.slice(1);
   const file = normalize(join(publicDir, relative));

@@ -81,8 +81,12 @@ loginForm?.addEventListener("submit", async (event) => {
     if (!result.authenticated) throw new Error("Não foi possível iniciar sua sessão.");
 
     const status = result.user.status;
+    if (status === "pending_founder") {
+      window.location.href = "/assinar.html";
+      return;
+    }
     if (["active", "trial_active"].includes(status)) return renderView("allowed");
-    if (["pending", "pending_trial", "pending_founder"].includes(status)) return renderView(status);
+    if (["pending", "pending_trial"].includes(status)) return renderView(status);
     if (status === "rejected") return renderView("rejected");
     if (status === "trial_finished") return renderView("trial_finished");
     return renderView("blocked");
