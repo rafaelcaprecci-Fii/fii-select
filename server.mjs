@@ -416,17 +416,12 @@ function statusTemplateEvents(nextStatus) {
   if (["approved", "active", "aprovado", "ativo"].includes(nextStatus)) {
     return ["acessoLiberadoFundador"];
   }
-  if (["rejected", "refused", "recusado", "rejeitado"].includes(nextStatus)) {
-    return ["cadastroNaoAprovado"];
-  }
   if (["trial_active", "teste_ativo", "teste"].includes(nextStatus)) {
     return ["acessoLiberadoTeste"];
   }
   if (["trial_finished", "trial_ended", "teste_finalizado", "teste_encerrado"].includes(nextStatus)) {
     return ["testeFinalizado"];
   }
-  if (["archived", "arquivado"].includes(nextStatus)) return ["contaArquivada"];
-  if (["inactive", "inativo", "inativado"].includes(nextStatus)) return ["contaInativada"];
   return [];
 }
 
@@ -528,7 +523,8 @@ async function registerUser(input, origin) {
 
     const user = createUser(validatedInput);
     users.unshift(user);
-    return { user: publicUser(user) };
+    const email = await sendAndRecord(user, registrationTemplateEvent(user), origin);
+    return { user: publicUser(user), email };
   });
 }
 
@@ -555,7 +551,12 @@ async function changeUserStatus(id, status, origin) {
       );
     }
 
-    return { user: publicUser(user), emailResults: [] };
+    const emailResults = [];
+    for (const event of statusTemplateEvents(nextStatus)) {
+      emailResults.push(await sendAndRecord(user, event, origin));
+    }
+
+    return { user: publicUser(user), emailResults };
   });
 }
 
