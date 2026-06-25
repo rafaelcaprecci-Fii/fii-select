@@ -50,6 +50,7 @@ const eventLabel = {
   acessoLiberadoTeste: "Acesso ao teste de 7 dias liberado",
 };
 const sandboxTickers = new Set(["MXRF11", "HGLG11"]);
+const brapiTestTickers = ["MXRF11", "HGLG11", "KNCR11", "XPML11", "VISC11"];
 const cache = new Map();
 const clientSessions = new Map();
 let usersQueue = Promise.resolve();
@@ -777,6 +778,51 @@ async function getFiiData(ticker) {
   });
 }
 
+async function testBrapiIndicators() {
+  if (!brapiToken) {
+    return {
+      ok: false,
+      configured: false,
+      endpoint: "/api/v2/fii/indicators",
+      error: "BRAPI_TOKEN não configurado no backend.",
+      results: [],
+    };
+  }
+
+  const results = await Promise.all(
+    brapiTestTickers.map(async (ticker) => {
+      try {
+        const payload = await upstream(
+          `https://brapi.dev/api/v2/fii/indicators?symbols=${encodeURIComponent(ticker)}`,
+        );
+        const indicator = payload.fiis?.find((item) => item.symbol === ticker) || payload.fiis?.[0];
+        if (!indicator) throw new Error("FII não encontrado na resposta da BRAPI.");
+
+        return {
+          ticker,
+          ok: true,
+          name: indicator.name || "",
+          price: Number.isFinite(Number(indicator.price)) ? Number(indicator.price) : null,
+          asOfDate: indicator.asOfDate || "",
+        };
+      } catch (error) {
+        return {
+          ticker,
+          ok: false,
+          error: error.message || "Falha ao consultar a BRAPI.",
+        };
+      }
+    }),
+  );
+
+  return {
+    ok: results.every((result) => result.ok),
+    configured: true,
+    endpoint: "/api/v2/fii/indicators",
+    results,
+  };
+}
+
 async function valuation(url) {
   const ticker = (url.searchParams.get("ticker") || "MXRF11").trim().toUpperCase();
   if (!/^[A-Z]{4}[0-9]{2}$/.test(ticker)) {
@@ -1009,6 +1055,11 @@ const server = http.createServer(async (req, res) => {
         } catch (error) {
           return json(res, 400, { ok: false, error: error.message || "Cadastro inválido." });
         }
+      }
+
+      if (url.pathname === "/admin/api/brapi-test" && req.method === "GET") {
+        const result = await testBrapiIndicators();
+        return json(res, result.configured ? 200 : 503, result);
       }
 
       const statusMatch = url.pathname.match(/^\/admin\/api\/users\/([^/]+)\/status$/);
