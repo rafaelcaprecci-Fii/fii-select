@@ -449,6 +449,8 @@ function normalizeStatus(status) {
     arquivado: "archived",
     inativo: "inactive",
     inativado: "inactive",
+    awaiting_payment: "awaiting_payment",
+    payment_pending: "payment_pending",
     pendente: "pending",
     pending_trial: "pending_trial",
     pending_founder: "pending_founder",
@@ -595,6 +597,7 @@ async function findUserForLogin(email, origin) {
       name: user.name,
       intent: user.intent || "general",
       status: normalizeStatus(user.status),
+      paymentStatus: user.paymentStatus ? normalizeStatus(user.paymentStatus) : "",
     };
   });
 }

@@ -36,6 +36,8 @@ const views = {
 
 const directRedirects = {
   pending_founder: "/assinar.html",
+  awaiting_payment: "/status-pendente.html",
+  payment_pending: "/status-pendente.html",
   active: "/status-aprovado.html",
   pending_trial: "/teste.html",
   trial_active: "/teste.html",
@@ -69,7 +71,9 @@ loginForm?.addEventListener("submit", async (event) => {
     if (!result.user) return renderView("not_found");
     if (!result.authenticated) throw new Error("Não foi possível iniciar sua sessão.");
 
-    const status = result.user.status;
+    const status = ["awaiting_payment", "payment_pending"].includes(result.user.paymentStatus)
+      ? result.user.paymentStatus
+      : result.user.status;
     if (directRedirects[status]) {
       window.location.href = directRedirects[status];
       return;
