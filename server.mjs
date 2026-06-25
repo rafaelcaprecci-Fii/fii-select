@@ -26,6 +26,7 @@ const protectedAdminRoutes = new Set([
   "/admin/testar-email",
 ]);
 const protectedAdminApiPrefix = "/admin/api/";
+const stabilizationBaseUrl = "https://fii-select-fii-select-stabilization.up.railway.app";
 const platformContactUrl =
   "https://wa.me/5511971780101?text=Ol%C3%A1.%20Quero%20reativar%20meu%20acesso%20ao%20FII%20Select.";
 const templateEnvByEvent = {
@@ -215,15 +216,15 @@ function nonEmptyString(value, fallback = "") {
   return normalized || fallback;
 }
 
-function brevoTemplateParams(user, origin) {
-  const baseUrl = nonEmptyString(origin, "https://fiiselect.com.br").replace(/\/+$/, "");
+function brevoTemplateParams(user) {
   const name = nonEmptyString(user.name, "Investidor");
   const email = nonEmptyString(user.email);
   return {
     NOME: name,
     EMAIL: email,
-    LINK_ACESSO: nonEmptyString(user.linkAcesso, baseUrl),
-    LINK_PLANOS: nonEmptyString(user.linkPlanos, `${baseUrl}/assinar`),
+    LINK_LOGIN: `${stabilizationBaseUrl}/login.html`,
+    LINK_ACESSO: "",
+    LINK_PLANOS: nonEmptyString(user.linkPlanos, `${stabilizationBaseUrl}/assinar.html`),
     LINK_REATIVACAO: nonEmptyString(user.linkReativacao, platformContactUrl),
     DATA_INICIO_TESTE: formatBrazilDate(user.trialStartAt || user.trialStartedAt),
     DATA_FIM_TESTE: formatBrazilDate(user.trialEndAt || user.trialEndsAt),
@@ -235,7 +236,19 @@ function brevoTemplatePayload({ user, event, origin, emailFrom }) {
   if (!templateEnv) throw new Error(`Evento Brevo desconhecido: ${event}.`);
 
   const templateId = Number(requireEnv(templateEnv));
-  const params = brevoTemplateParams(user, origin);
+  const params = brevoTemplateParams(user);
+  if (["cadastroRecebidoTeste", "cadastroRecebidoFundador"].includes(event)) {
+    delete params.LINK_ACESSO;
+  } else if (event === "acessoLiberadoTeste") {
+    params.LINK_ACESSO = `${stabilizationBaseUrl}/status-teste-ativo.html`;
+    delete params.LINK_LOGIN;
+  } else if (event === "acessoLiberadoFundador") {
+    params.LINK_ACESSO = `${stabilizationBaseUrl}/status-aprovado.html`;
+    delete params.LINK_LOGIN;
+  } else {
+    delete params.LINK_LOGIN;
+    delete params.LINK_ACESSO;
+  }
   if (!params.EMAIL) throw new Error("E-mail do usuario vazio. Envio nao realizado.");
   if (!Number.isInteger(templateId) || templateId <= 0) {
     throw new Error(`Template Brevo invalido para ${templateEnv}.`);
