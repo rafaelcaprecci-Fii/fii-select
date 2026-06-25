@@ -26,9 +26,9 @@ const views = {
     label: "Voltar para o início",
     href: "/",
   },
-  allowed: {
-    title: "Enviamos um link de acesso para o seu e-mail",
-    text: "Use o link enviado para acessar o FII Select.",
+  trial_unavailable: {
+    title: "Acesso em preparação",
+    text: "O fluxo do Teste Grátis ainda não está disponível neste ambiente de estabilização.",
     label: "Voltar para o início",
     href: "/",
   },
@@ -85,7 +85,11 @@ loginForm?.addEventListener("submit", async (event) => {
       window.location.href = "/assinar.html";
       return;
     }
-    if (["active", "trial_active"].includes(status)) return renderView("allowed");
+    if (status === "active") {
+      window.location.href = "/status-aprovado.html";
+      return;
+    }
+    if (status === "trial_active") return renderView("trial_unavailable");
     if (["pending", "pending_trial"].includes(status)) return renderView(status);
     if (status === "rejected") return renderView("rejected");
     if (status === "trial_finished") return renderView("trial_finished");
