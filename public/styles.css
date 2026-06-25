@@ -2352,6 +2352,10 @@ main {
   font-size: 20px;
 }
 
+body.tool-page .app-header nav a {
+  font-family: "Roboto Slab", Georgia, "Times New Roman", serif;
+}
+
 .page,
 .account-page,
 .status-page {

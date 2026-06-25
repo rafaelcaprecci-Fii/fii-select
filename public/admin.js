@@ -17,9 +17,30 @@ function formatDateTime(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return [value, ""];
   return [
-    new Intl.DateTimeFormat("pt-BR").format(date),
-    `às ${new Intl.DateTimeFormat("pt-BR", { hour: "2-digit", minute: "2-digit" }).format(date)}`,
+    new Intl.DateTimeFormat("pt-BR", {
+      timeZone: "America/Sao_Paulo",
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    }).format(date),
+    `às ${new Intl.DateTimeFormat("pt-BR", {
+      timeZone: "America/Sao_Paulo",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(date)}`,
   ];
+}
+
+function updateAdminCurrentDate() {
+  const dateElement = document.querySelector("[data-admin-current-date]");
+  if (!dateElement) return;
+
+  dateElement.textContent = new Intl.DateTimeFormat("pt-BR", {
+    timeZone: "America/Sao_Paulo",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(new Date());
 }
 
 function statusText(status) {
@@ -215,4 +236,5 @@ actionsModal?.querySelector(".status-whatsapp")?.addEventListener("click", (even
   }
 });
 
+updateAdminCurrentDate();
 loadUsers().catch((error) => showAdminMessage(error.message, true));
