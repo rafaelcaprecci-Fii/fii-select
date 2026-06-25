@@ -138,11 +138,7 @@ async function updateStatus(status) {
   const result = await response.json();
   if (!response.ok) throw new Error(result.error || "Falha ao atualizar status.");
   await loadUsers();
-  const failed = (result.emailResults || []).find((item) => !item.ok);
-  showAdminMessage(
-    failed ? `Status salvo. Erro no e-mail: ${failed.error}` : "Status salvo e e-mail processado.",
-    Boolean(failed),
-  );
+  showAdminMessage("Status salvo.");
 }
 
 function showUnavailableMessage() {
@@ -198,7 +194,7 @@ manualForm?.addEventListener("submit", async (event) => {
   const result = await response.json();
   if (!response.ok) return showAdminMessage(result.error || "Falha ao cadastrar usuário.", true);
   await loadUsers();
-  showAdminMessage(result.email?.ok ? "Cadastro salvo e e-mail enviado." : `Cadastro salvo. Erro no e-mail: ${result.email?.error}`, !result.email?.ok);
+  showAdminMessage("Cadastro salvo.");
 });
 
 actionsModal?.querySelector(".status-pending")?.addEventListener("click", () => updateStatus("pending"));

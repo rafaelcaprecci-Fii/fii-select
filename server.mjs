@@ -14,9 +14,15 @@ const host = process.env.HOST || "127.0.0.1";
 const brapiToken = process.env.BRAPI_TOKEN || "";
 const adminUser = process.env.ADMIN_USER || "";
 const adminPassword = process.env.ADMIN_PASSWORD || "";
-const clientSessionCookie = "fii_select_session";
-const clientSessionMaxAge = 60 * 60 * 24 * 30;
-const protectedAdminRoutes = new Set(["/admin", "/admin/login", "/admin/usuarios", "/admin/testar-email"]);
+const protectedAdminRoutes = new Set([
+  "/admin",
+  "/admin.html",
+  "/admin/login",
+  "/admin-login.html",
+  "/admin-negativa.html",
+  "/admin/usuarios",
+  "/admin/testar-email",
+]);
 const protectedAdminApiPrefix = "/admin/api/";
 const platformContactUrl =
   "https://wa.me/5511971780101?text=Ol%C3%A1.%20Quero%20reativar%20meu%20acesso%20ao%20FII%20Select.";
@@ -42,7 +48,6 @@ const eventLabel = {
 };
 const sandboxTickers = new Set(["MXRF11", "HGLG11"]);
 const cache = new Map();
-const clientSessions = new Map();
 let usersQueue = Promise.resolve();
 const fiiCatalog = [
   { ticker: "MXRF11", segmentType: "papel", label: "Maxi Renda", sandbox: true },
@@ -75,60 +80,10 @@ function json(res, status, data) {
   res.end(JSON.stringify(data));
 }
 
-function redirect(res, location) {
-  res.writeHead(302, {
-    Location: location,
-    "Cache-Control": "no-store",
-  });
-  res.end();
-}
-
 function safeCompare(a, b) {
   const left = Buffer.from(a);
   const right = Buffer.from(b);
   return left.length === right.length && timingSafeEqual(left, right);
-}
-
-function parseCookies(req) {
-  return Object.fromEntries(
-    String(req.headers.cookie || "")
-      .split(";")
-      .map((part) => part.trim())
-      .filter(Boolean)
-      .map((part) => {
-        const separator = part.indexOf("=");
-        return separator === -1
-          ? [decodeURIComponent(part), ""]
-          : [decodeURIComponent(part.slice(0, separator)), decodeURIComponent(part.slice(separator + 1))];
-      }),
-  );
-}
-
-function createClientSession(res, req, userId) {
-  const token = randomUUID();
-  const expiresAt = Date.now() + clientSessionMaxAge * 1000;
-  const secure = String(req.headers["x-forwarded-proto"] || "").split(",")[0].trim() === "https";
-
-  clientSessions.set(token, { userId, expiresAt });
-  res.setHeader(
-    "Set-Cookie",
-    `${clientSessionCookie}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${clientSessionMaxAge}${secure ? "; Secure" : ""}`,
-  );
-}
-
-async function sessionUser(req, origin) {
-  const token = parseCookies(req)[clientSessionCookie] || "";
-  const session = clientSessions.get(token);
-  if (!session) return null;
-  if (session.expiresAt <= Date.now()) {
-    clientSessions.delete(token);
-    return null;
-  }
-
-  return withUsers(async (users) => {
-    await expireFinishedTrials(users, origin);
-    return users.find((user) => user.id === session.userId) || null;
-  });
 }
 
 function requireAdminAuth(req, res) {
@@ -497,25 +452,6 @@ async function sendAndRecord(user, event, origin) {
   }
 }
 
-async function expireFinishedTrials(users, origin) {
-  const now = Date.now();
-  const emailResults = [];
-  for (const user of users) {
-    if (
-      user.status === "trial_active" &&
-      (user.trialEndAt || user.trialEndsAt) &&
-      new Date(user.trialEndAt || user.trialEndsAt).getTime() <= now
-    ) {
-      user.status = "trial_finished";
-      user.updatedAt = new Date().toISOString();
-      user.history = user.history || [];
-      user.history.unshift(`${formatBrazilDateTime(user.updatedAt)} - Teste grátis encerrado automaticamente`);
-      emailResults.push(await sendAndRecord(user, "testeFinalizado", origin));
-    }
-  }
-  return emailResults;
-}
-
 async function registerUser(input, origin) {
   const validatedInput = validateRegistrationInput(input);
   return withUsers(async (users) => {
@@ -529,9 +465,8 @@ async function registerUser(input, origin) {
     }
 
     const user = createUser(validatedInput);
-    const emailResult = await sendAndRecord(user, registrationTemplateEvent(user), origin);
     users.unshift(user);
-    return { user: publicUser(user), email: emailResult };
+    return { user: publicUser(user) };
   });
 }
 
@@ -546,7 +481,6 @@ async function changeUserStatus(id, status, origin) {
     user.history = user.history || [];
     user.history.unshift(`${formatBrazilDateTime(user.updatedAt)} - Status alterado para ${statusLabel(nextStatus)}`);
 
-    const events = statusTemplateEvents(nextStatus);
     if (nextStatus === "active") {
       user.plan = "fundador";
     }
@@ -559,11 +493,7 @@ async function changeUserStatus(id, status, origin) {
       );
     }
 
-    const emailResults = [];
-    for (const event of events) emailResults.push(await sendAndRecord(user, event, origin));
-    const emailErrors = emailResults.filter((result) => !result.ok).map((result) => result.error);
-    if (emailErrors.length) user.lastEmailError = emailErrors.join(" | ");
-    return { user: publicUser(user), emailResults };
+    return { user: publicUser(user), emailResults: [] };
   });
 }
 
@@ -579,25 +509,13 @@ async function resendUserEmail(id, origin) {
   return withUsers(async (users) => {
     const user = users.find((item) => item.id === id);
     if (!user) throw new Error("Usuario nao encontrado.");
-    const event = currentTemplateEvent(user);
-    const email = await sendAndRecord(user, event, origin);
-    return { user: publicUser(user), email };
-  });
-}
-
-async function findUserForLogin(email, origin) {
-  const normalizedEmail = String(email || "").trim().toLowerCase();
-  if (!normalizedEmail) throw new Error("Informe o e-mail.");
-  return withUsers(async (users) => {
-    await expireFinishedTrials(users, origin);
-    const user = users.find((item) => String(item.email || "").trim().toLowerCase() === normalizedEmail);
-    if (!user) return null;
     return {
-      id: user.id,
-      name: user.name,
-      intent: user.intent || "general",
-      status: normalizeStatus(user.status),
-      paymentStatus: user.paymentStatus ? normalizeStatus(user.paymentStatus) : "",
+      user: publicUser(user),
+      email: {
+        ok: false,
+        skipped: true,
+        error: "Envio de e-mail desativado temporariamente.",
+      },
     };
   });
 }
@@ -892,18 +810,6 @@ async function serveStatic(req, res, pathname) {
     "/admin/usuarios": "admin.html",
   };
   if (protectedAdminRoutes.has(pathname) && !requireAdminAuth(req, res)) return;
-  if (["/assinar", "/assinar.html"].includes(pathname)) {
-    const user = await sessionUser(req, originFrom(req));
-    if (!user || normalizeStatus(user.status) !== "pending_founder") {
-      return redirect(res, "/login.html");
-    }
-  }
-  if (["/ferramenta", "/ferramenta.html"].includes(pathname)) {
-    const user = await sessionUser(req, originFrom(req));
-    if (normalizeStatus(user?.status) === "pending_founder") {
-      return redirect(res, "/assinar.html");
-    }
-  }
 
   const relative = routeMap[pathname] || pathname.slice(1);
   const file = normalize(join(publicDir, relative));
@@ -927,24 +833,16 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === "/admin/testar-email") {
       if (req.method !== "GET") return json(res, 405, { ok: false, error: "Metodo nao permitido." });
       if (!requireAdminAuth(req, res)) return;
-      try {
-        await sendBrevoApiTestEmail();
-        return json(res, 200, { ok: true });
-      } catch (error) {
-        return json(res, 500, { ok: false, error: error.message || "Falha ao enviar e-mail." });
-      }
+      return json(res, 503, { ok: false, error: "Envio de e-mail desativado temporariamente." });
     }
     if (url.pathname.startsWith(protectedAdminApiPrefix)) {
       if (!requireAdminAuth(req, res)) return;
 
       if (url.pathname === "/admin/api/users" && req.method === "GET") {
-        const result = await withUsers(async (users) => {
-          const emailResults = await expireFinishedTrials(users, origin);
-          return {
-            users: users.map(publicUser),
-            emailResults,
-          };
-        });
+        const result = await withUsers(async (users) => ({
+          users: users.map(publicUser),
+          emailResults: [],
+        }));
         return json(res, 200, { ok: true, ...result });
       }
 
@@ -987,26 +885,6 @@ const server = http.createServer(async (req, res) => {
       } catch (error) {
         return json(res, 400, { ok: false, error: error.message || "Cadastro inválido." });
       }
-    }
-    if (url.pathname === "/api/users/login-status" && req.method === "POST") {
-      const body = await readJsonBody(req);
-      const user = await findUserForLogin(body.email, origin);
-      if (user) createClientSession(res, req, user.id);
-      return json(res, 200, { ok: true, authenticated: Boolean(user), user });
-    }
-    if (url.pathname === "/api/users/session" && req.method === "GET") {
-      const user = await sessionUser(req, origin);
-      if (!user) return json(res, 401, { ok: false, authenticated: false });
-      return json(res, 200, {
-        ok: true,
-        authenticated: true,
-        user: {
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          status: normalizeStatus(user.status),
-        },
-      });
     }
     if (url.pathname === "/api/health") {
       return json(res, 200, {
