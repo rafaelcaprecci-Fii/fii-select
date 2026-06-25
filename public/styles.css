@@ -3722,6 +3722,23 @@ body.account-client-page .info-card span {
   font-weight: 400;
 }
 
+body.account-client-page .account-field-select {
+  width: min(100%, 240px);
+  border: 1px solid rgba(17, 31, 58, .18);
+  border-radius: 4px;
+  padding: 8px 34px 8px 10px;
+  background-color: #fff;
+  color: rgba(0, 0, 0, .7);
+  font: inherit;
+  font-size: 14px;
+}
+
+body.account-client-page .account-field-select:focus {
+  border-color: #6687e8;
+  outline: 2px solid rgba(102, 135, 232, .2);
+  outline-offset: 1px;
+}
+
 body.account-client-page .info-card a {
   color: #6b86f3;
   font-size: 13px;
@@ -3731,6 +3748,18 @@ body.account-client-page .info-card a {
 body.account-client-page .info-card .badge {
   transform: scale(.8);
   transform-origin: center right;
+}
+
+body.account-client-page .account-status-active {
+  background: #0b7923;
+}
+
+body.account-client-page .account-status-inactive {
+  background: #e83205;
+}
+
+body.account-client-page .account-status-archived {
+  background: #6b6d72;
 }
 
 body.account-client-page .text-link.danger {
@@ -4060,7 +4089,7 @@ body.account-client-page .info-card .archived-badge {
 }
 
 body.account-client-page .info-card .canceled-badge {
-  background: #d93412;
+  background: #e83205;
 }
 
 /* Padrao dos cards de cadastro, login e confirmacao */
