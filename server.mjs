@@ -181,8 +181,8 @@ function brevoTemplateParams(user, origin) {
   return {
     NOME: name,
     EMAIL: email,
-    LINK_LOGIN: nonEmptyString(user.linkLogin, `${baseUrl}/login.html`),
-    LINK_ACESSO: nonEmptyString(user.linkAcesso, `${baseUrl}${clientAreaPath(user)}`),
+    LINK_LOGIN: `${baseUrl}/login.html`,
+    LINK_ACESSO: `${baseUrl}${clientAreaPath(user)}`,
     LINK_PLANOS: nonEmptyString(user.linkPlanos, `${baseUrl}/assinar`),
     LINK_REATIVACAO: nonEmptyString(user.linkReativacao, platformContactUrl),
     DATA_INICIO_TESTE: formatBrazilDate(user.trialStartAt || user.trialStartedAt),
@@ -996,19 +996,6 @@ async function serveStatic(req, res, pathname) {
   if (protectedClientPages.has(pathname)) {
     const user = await sessionUser(req, originFrom(req));
     if (!user) return redirect(res, "/login.html");
-  }
-  if (
-    [
-      "/area-cliente",
-      "/area-cliente.html",
-      "/area-cliente/fundador",
-      "/area-cliente/teste",
-      "/area-cliente/acompanhamento",
-    ].includes(pathname)
-  ) {
-    const user = await sessionUser(req, originFrom(req));
-    if (!user) return redirect(res, "/login.html");
-    return redirect(res, clientAreaPath(user));
   }
   if (["/ferramenta", "/ferramenta.html"].includes(pathname)) {
     const user = await sessionUser(req, originFrom(req));
