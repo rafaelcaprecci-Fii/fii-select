@@ -9,20 +9,8 @@ const views = {
     href: "/cadastro",
   },
   pending: {
-    title: "Cadastro em análise",
-    text: "Seu cadastro foi recebido e ainda está em análise. Você receberá uma atualização por e-mail assim que houver liberação.",
-    label: "Voltar para o início",
-    href: "/",
-  },
-  pending_trial: {
-    title: "Cadastro em análise",
-    text: "Seu cadastro para teste grátis está em análise. Você receberá uma atualização por e-mail assim que houver liberação.",
-    label: "Voltar para o início",
-    href: "/",
-  },
-  trial_unavailable: {
-    title: "Acesso em preparação",
-    text: "O fluxo do Teste Grátis ainda não está disponível neste ambiente de estabilização.",
+    title: "Cadastro realizado",
+    text: "Seu cadastro foi encontrado. Este fluxo ainda não está disponível neste ambiente de estabilização.",
     label: "Voltar para o início",
     href: "/",
   },
@@ -49,6 +37,8 @@ const views = {
 const directRedirects = {
   pending_founder: "/assinar.html",
   active: "/status-aprovado.html",
+  pending_trial: "/teste.html",
+  trial_active: "/teste.html",
 };
 
 function renderView(view) {
@@ -84,8 +74,7 @@ loginForm?.addEventListener("submit", async (event) => {
       window.location.href = directRedirects[status];
       return;
     }
-    if (status === "trial_active") return renderView("trial_unavailable");
-    if (["pending", "pending_trial"].includes(status)) return renderView(status);
+    if (status === "pending") return renderView("pending");
     if (status === "rejected") return renderView("rejected");
     if (status === "trial_finished") return renderView("trial_finished");
     return renderView("blocked");
