@@ -14,6 +14,8 @@ const host = process.env.HOST || "127.0.0.1";
 const brapiToken = process.env.BRAPI_TOKEN || "";
 const adminUser = process.env.ADMIN_USER || "";
 const adminPassword = process.env.ADMIN_PASSWORD || "";
+const clientSessionCookie = "fii_select_session";
+const clientSessionMaxAge = 60 * 60 * 24 * 30;
 const protectedAdminRoutes = new Set([
   "/admin",
   "/admin.html",
@@ -48,6 +50,7 @@ const eventLabel = {
 };
 const sandboxTickers = new Set(["MXRF11", "HGLG11"]);
 const cache = new Map();
+const clientSessions = new Map();
 let usersQueue = Promise.resolve();
 const fiiCatalog = [
   { ticker: "MXRF11", segmentType: "papel", label: "Maxi Renda", sandbox: true },
@@ -84,6 +87,45 @@ function safeCompare(a, b) {
   const left = Buffer.from(a);
   const right = Buffer.from(b);
   return left.length === right.length && timingSafeEqual(left, right);
+}
+
+function parseCookies(req) {
+  return Object.fromEntries(
+    String(req.headers.cookie || "")
+      .split(";")
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .map((part) => {
+        const separator = part.indexOf("=");
+        return separator === -1
+          ? [decodeURIComponent(part), ""]
+          : [decodeURIComponent(part.slice(0, separator)), decodeURIComponent(part.slice(separator + 1))];
+      }),
+  );
+}
+
+function createClientSession(res, req, userId) {
+  const token = randomUUID();
+  const expiresAt = Date.now() + clientSessionMaxAge * 1000;
+  const secure = String(req.headers["x-forwarded-proto"] || "").split(",")[0].trim() === "https";
+
+  clientSessions.set(token, { userId, expiresAt });
+  res.setHeader(
+    "Set-Cookie",
+    `${clientSessionCookie}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${clientSessionMaxAge}${secure ? "; Secure" : ""}`,
+  );
+}
+
+async function sessionUser(req) {
+  const token = parseCookies(req)[clientSessionCookie] || "";
+  const session = clientSessions.get(token);
+  if (!session) return null;
+  if (session.expiresAt <= Date.now()) {
+    clientSessions.delete(token);
+    return null;
+  }
+
+  return withUsers(async (users) => users.find((user) => user.id === session.userId) || null);
 }
 
 function requireAdminAuth(req, res) {
@@ -413,6 +455,26 @@ function normalizeStatus(status) {
   return map[value] || value || "pending";
 }
 
+function canAccessTool(user) {
+  return Boolean(user && ["active", "trial_active"].includes(normalizeStatus(user.status)));
+}
+
+function clientFlowPath(user) {
+  const status = normalizeStatus(user?.status);
+  const paymentStatus = user?.paymentStatus ? normalizeStatus(user.paymentStatus) : "";
+
+  if (
+    ["awaiting_payment", "payment_pending"].includes(status)
+    || ["awaiting_payment", "payment_pending"].includes(paymentStatus)
+  ) {
+    return "/status-pendente.html";
+  }
+  if (status === "active") return "/status-aprovado.html";
+  if (status === "trial_active") return "/status-teste-ativo.html";
+  if (status === "pending_trial" || user?.intent === "trial") return "/teste.html";
+  return "/assinar.html";
+}
+
 function statusLabel(status) {
   return {
     pending: "Pendente",
@@ -516,6 +578,25 @@ async function resendUserEmail(id, origin) {
         skipped: true,
         error: "Envio de e-mail desativado temporariamente.",
       },
+    };
+  });
+}
+
+async function findUserForLogin(email) {
+  const normalizedEmail = String(email || "").trim().toLowerCase();
+  if (!normalizedEmail) throw new Error("Informe o e-mail.");
+
+  return withUsers(async (users) => {
+    const user = users.find(
+      (item) => String(item.email || "").trim().toLowerCase() === normalizedEmail,
+    );
+    if (!user) return null;
+    return {
+      id: user.id,
+      name: user.name,
+      intent: user.intent || "general",
+      status: normalizeStatus(user.status),
+      paymentStatus: user.paymentStatus || "",
     };
   });
 }
@@ -810,6 +891,14 @@ async function serveStatic(req, res, pathname) {
     "/admin/usuarios": "admin.html",
   };
   if (protectedAdminRoutes.has(pathname) && !requireAdminAuth(req, res)) return;
+  if (["/ferramenta", "/ferramenta.html"].includes(pathname)) {
+    const user = await sessionUser(req);
+    if (!canAccessTool(user)) {
+      res.writeHead(302, { Location: "/login.html", "Cache-Control": "no-store" });
+      res.end();
+      return;
+    }
+  }
 
   const relative = routeMap[pathname] || pathname.slice(1);
   const file = normalize(join(publicDir, relative));
@@ -886,6 +975,27 @@ const server = http.createServer(async (req, res) => {
         return json(res, 400, { ok: false, error: error.message || "Cadastro inválido." });
       }
     }
+    if (url.pathname === "/api/users/login-status" && req.method === "POST") {
+      const body = await readJsonBody(req);
+      const user = await findUserForLogin(body.email);
+      if (user) createClientSession(res, req, user.id);
+      return json(res, 200, {
+        ok: true,
+        authenticated: Boolean(user),
+        user,
+        redirectTo: user ? clientFlowPath(user) : "",
+      });
+    }
+    if (url.pathname === "/api/users/session" && req.method === "GET") {
+      const user = await sessionUser(req);
+      if (!user) return json(res, 401, { ok: false, authenticated: false });
+      return json(res, 200, {
+        ok: true,
+        authenticated: true,
+        user: publicUser(user),
+        canAccessTool: canAccessTool(user),
+      });
+    }
     if (url.pathname === "/api/health") {
       return json(res, 200, {
         ok: true,
@@ -893,9 +1003,16 @@ const server = http.createServer(async (req, res) => {
         mode: brapiToken ? "token configurado" : "sandbox",
       });
     }
-    if (url.pathname === "/api/valuation") return json(res, 200, await valuation(url));
-    if (url.pathname === "/api/suggestions") return json(res, 200, suggestions(url));
-    if (url.pathname === "/api/comparison") return json(res, 200, await comparison(url));
+    if (["/api/valuation", "/api/suggestions", "/api/comparison"].includes(url.pathname)) {
+      const user = await sessionUser(req);
+      if (!user) return json(res, 401, { error: "Faça login para acessar a ferramenta." });
+      if (!canAccessTool(user)) {
+        return json(res, 403, { error: "A ferramenta ainda não está liberada para este cadastro." });
+      }
+      if (url.pathname === "/api/valuation") return json(res, 200, await valuation(url));
+      if (url.pathname === "/api/suggestions") return json(res, 200, suggestions(url));
+      return json(res, 200, await comparison(url));
+    }
     if (url.pathname === "/api/demo-video" && req.method === "POST") {
       const chunks = [];
       let size = 0;
