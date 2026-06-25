@@ -259,7 +259,9 @@ async function sessionUser(req, origin) {
 }
 
 function canAccessTool(user) {
-  const blockedPayment = ["payment_pending", "awaiting_payment", "unpaid"].includes(user?.paymentStatus);
+  const blockedPayment = ["payment_pending", "awaiting_payment", "unpaid"].includes(
+    normalizeStatus(user?.paymentStatus),
+  );
   return Boolean(
     user &&
       !blockedPayment &&
@@ -269,9 +271,10 @@ function canAccessTool(user) {
 
 function clientAreaPath(user) {
   const status = normalizeStatus(user?.status);
+  const paymentStatus = normalizeStatus(user?.paymentStatus);
   if (
     ["payment_pending", "awaiting_payment", "unpaid"].includes(status)
-    || ["payment_pending", "awaiting_payment", "unpaid"].includes(user?.paymentStatus)
+    || ["payment_pending", "awaiting_payment", "unpaid"].includes(paymentStatus)
   ) {
     return "/status-pendente.html";
   }
@@ -284,6 +287,42 @@ function clientAreaPath(user) {
   if (status === "canceled") return "/conta-cancelada.html";
   if (status === "archived") return "/conta-arquivada.html";
   return "/login.html";
+}
+
+function clientPageAccess(user) {
+  const status = normalizeStatus(user?.status);
+  const paymentStatus = normalizeStatus(user?.paymentStatus);
+
+  if (["payment_pending", "awaiting_payment", "unpaid"].includes(paymentStatus)) {
+    return new Set(["/status-pendente", "/status-pendente.html"]);
+  }
+
+  const pagesByStatus = {
+    pending_founder: ["/assinar", "/assinar.html"],
+    payment_pending: ["/status-pendente", "/status-pendente.html"],
+    awaiting_payment: ["/status-pendente", "/status-pendente.html"],
+    unpaid: ["/status-pendente", "/status-pendente.html"],
+    active: [
+      "/status-aprovado",
+      "/status-aprovado.html",
+      "/conta",
+      "/conta.html",
+      "/conta-confirmacao-arquivamento.html",
+      "/conta-confirmacao-cancelamento.html",
+    ],
+    pending_trial: ["/status-teste-pendente", "/status-teste-pendente.html"],
+    trial_active: [
+      "/status-teste-ativo",
+      "/status-teste-ativo.html",
+      "/conta-teste.html",
+    ],
+    trial_finished: ["/teste-encerrado", "/teste-encerrado.html"],
+    inactive: ["/conta-inativa", "/conta-inativa.html"],
+    canceled: ["/conta-cancelada.html"],
+    archived: ["/conta-arquivada.html"],
+  };
+
+  return new Set(pagesByStatus[status] || []);
 }
 
 function brevoTemplatePayload({ user, event, origin, emailFrom }) {
@@ -996,6 +1035,9 @@ async function serveStatic(req, res, pathname) {
   if (protectedClientPages.has(pathname)) {
     const user = await sessionUser(req, originFrom(req));
     if (!user) return redirect(res, "/login.html");
+    if (!clientPageAccess(user).has(pathname)) {
+      return redirect(res, clientAreaPath(user));
+    }
   }
   if (["/ferramenta", "/ferramenta.html"].includes(pathname)) {
     const user = await sessionUser(req, originFrom(req));
