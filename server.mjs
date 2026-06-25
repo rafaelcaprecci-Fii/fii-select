@@ -245,6 +245,12 @@ function brevoTemplatePayload({ user, event, origin, emailFrom }) {
   } else if (event === "acessoLiberadoFundador") {
     params.LINK_ACESSO = `${stabilizationBaseUrl}/status-aprovado.html`;
     delete params.LINK_LOGIN;
+  } else if (event === "contaInativada") {
+    params.LINK_ACESSO = `${stabilizationBaseUrl}/conta-inativa.html`;
+    delete params.LINK_LOGIN;
+  } else if (event === "contaArquivada") {
+    params.LINK_ACESSO = `${stabilizationBaseUrl}/conta-arquivada.html`;
+    delete params.LINK_LOGIN;
   } else {
     delete params.LINK_LOGIN;
     delete params.LINK_ACESSO;
@@ -434,6 +440,12 @@ function statusTemplateEvents(nextStatus) {
   }
   if (["trial_finished", "trial_ended", "teste_finalizado", "teste_encerrado"].includes(nextStatus)) {
     return ["testeFinalizado"];
+  }
+  if (["inactive", "inativo", "inativado"].includes(nextStatus)) {
+    return ["contaInativada"];
+  }
+  if (["archived", "arquivado"].includes(nextStatus)) {
+    return ["contaArquivada"];
   }
   return [];
 }
