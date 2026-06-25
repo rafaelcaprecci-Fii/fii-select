@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>FII Select | Confirmar cancelamento</title>
+    <title>FII Select | Confirmar inativação</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body class="client-page account-archive-page">
@@ -43,19 +43,20 @@
       </div>
       <div class="archive-blue-layer" aria-hidden="true"></div>
       <section class="archive-card">
-        <h2 class="eyebrow">Assinatura</h2>
-        <h1>Confirmar cancelamento da assinatura</h1>
+        <h2 class="eyebrow">Conta</h2>
+        <h1>Confirmar inativação da conta</h1>
         <p>
-          Ao confirmar, sua assinatura será cancelada e o acesso à ferramenta será desativado
-          ao final do período já pago.
+          Ao confirmar, sua conta ficará inativa e o acesso à ferramenta será removido.
+          Seu histórico continuará disponível para conferência interna.
         </p>
         <p class="archive-note">
           Essa solicitação será sinalizada no dashboard administrativo para acompanhamento manual.
         </p>
         <div class="archive-actions">
           <a class="cta cta-outline" href="conta.html">Voltar</a>
-          <a class="cta cta-gold" href="conta-cancelada.html">Confirmar cancelamento</a>
+          <button class="cta cta-gold" type="button" data-account-status="inactive">Confirmar inativação</button>
         </div>
+        <p class="account-action-message" data-account-action-message role="alert" aria-live="polite"></p>
       </section>
     </main>
     <footer class="site-footer app-footer">
@@ -71,5 +72,6 @@
       <span>TERMOS DE USO | POLÍTICA DE PRIVACIDADE | AVISO EDUCACIONAL</span>
       <a href="https://2bold.com.br/" target="_blank" rel="noopener noreferrer"><img src="ASSETS/2BOLD_2x.svg" alt="2Bold" /></a>
     </footer>
+    <script src="account-actions.js"></script>
   </body>
 </html>

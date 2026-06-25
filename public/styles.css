@@ -4972,6 +4972,24 @@ body.account-archive-page .archive-actions .cta {
   font-size: 14px;
 }
 
+body.account-archive-page .archive-actions button.cta {
+  border: 0;
+  cursor: pointer;
+}
+
+body.account-archive-page .archive-actions button.cta:disabled {
+  cursor: wait;
+  opacity: .7;
+}
+
+body.account-archive-page .account-action-message {
+  min-height: 20px;
+  margin: 18px 0 0;
+  color: #b42318;
+  font-size: 14px;
+  text-align: center;
+}
+
 body.account-archive-page .archive-actions .cta-outline {
   border: 1px solid #171757;
   color: #171757;

@@ -373,6 +373,7 @@ function publicUser(user) {
     lastPaymentLinkSentAt: user.lastPaymentLinkSentAt || "",
     paymentStatus: user.paymentStatus || "",
     history: user.history || [],
+    operationalEvents: user.operationalEvents || [],
   };
 }
 
@@ -517,6 +518,20 @@ function applyTrialDates(user, now = new Date()) {
   delete user.trialEndsAt;
 }
 
+function recordOperationalEvent(user, action, previousStatus, newStatus, occurredAt = new Date().toISOString()) {
+  user.operationalEvents = user.operationalEvents || [];
+  user.operationalEvents.unshift({
+    userId: user.id,
+    email: user.email,
+    name: user.name,
+    action,
+    previousStatus,
+    newStatus,
+    occurredAt,
+    occurredAtSaoPaulo: formatBrazilDateTime(occurredAt),
+  });
+}
+
 async function sendAndRecord(user, event, origin) {
   try {
     const { templateId } = await sendBrevoTransactionalEmail({ user, event, origin });
@@ -553,16 +568,21 @@ async function registerUser(input, origin) {
   });
 }
 
-async function changeUserStatus(id, status, origin) {
+async function changeUserStatus(id, status, origin, options = {}) {
   return withUsers(async (users) => {
     const user = users.find((item) => item.id === id);
     if (!user) throw new Error("Usuario nao encontrado.");
 
+    const previousStatus = normalizeStatus(user.status);
     const nextStatus = normalizeStatus(status);
     user.status = nextStatus;
     user.updatedAt = new Date().toISOString();
     user.history = user.history || [];
     user.history.unshift(`${formatBrazilDateTime(user.updatedAt)} - Status alterado para ${statusLabel(nextStatus)}`);
+
+    if (options.operationalAction) {
+      recordOperationalEvent(user, options.operationalAction, previousStatus, nextStatus, user.updatedAt);
+    }
 
     if (nextStatus === "active") {
       user.plan = "fundador";
@@ -582,6 +602,17 @@ async function changeUserStatus(id, status, origin) {
     }
 
     return { user: publicUser(user), emailResults };
+  });
+}
+
+async function recordClientAccountEvent(id, action) {
+  return withUsers(async (users) => {
+    const user = users.find((item) => item.id === id);
+    if (!user) throw new Error("Usuario nao encontrado.");
+
+    const status = normalizeStatus(user.status);
+    recordOperationalEvent(user, action, status, status);
+    return { user: publicUser(user) };
   });
 }
 
@@ -1021,6 +1052,50 @@ const server = http.createServer(async (req, res) => {
         user: publicUser(user),
         canAccessTool: canAccessTool(user),
       });
+    }
+    if (url.pathname === "/api/users/account-status" && req.method === "PATCH") {
+      const user = await sessionUser(req);
+      if (!user) return json(res, 401, { ok: false, error: "Faça login para alterar sua conta." });
+
+      const body = await readJsonBody(req);
+      const nextStatus = normalizeStatus(body.status);
+      const accountActions = {
+        inactive: {
+          operationalAction: "cliente inativou conta",
+          redirectTo: "/conta-inativa.html",
+        },
+        archived: {
+          operationalAction: "cliente arquivou conta",
+          redirectTo: "/conta-arquivada.html",
+        },
+      };
+      const accountAction = accountActions[nextStatus];
+      if (!accountAction) {
+        return json(res, 400, { ok: false, error: "Ação de conta inválida." });
+      }
+
+      const result = await changeUserStatus(user.id, nextStatus, origin, {
+        operationalAction: accountAction.operationalAction,
+      });
+      return json(res, 200, {
+        ok: true,
+        ...result,
+        redirectTo: accountAction.redirectTo,
+      });
+    }
+    if (url.pathname === "/api/users/account-event" && req.method === "POST") {
+      const user = await sessionUser(req);
+      if (!user) return json(res, 401, { ok: false, error: "Faça login para registrar esta ação." });
+
+      const body = await readJsonBody(req);
+      const accountEvents = {
+        reactivation_requested: "cliente solicitou reativação",
+      };
+      const action = accountEvents[String(body.event || "")];
+      if (!action) return json(res, 400, { ok: false, error: "Evento de conta inválido." });
+
+      const result = await recordClientAccountEvent(user.id, action);
+      return json(res, 200, { ok: true, ...result });
     }
     if (url.pathname === "/api/health") {
       return json(res, 200, {
