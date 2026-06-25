@@ -20,12 +20,6 @@ const views = {
     label: "Voltar para o início",
     href: "/",
   },
-  pending_founder: {
-    title: "Cadastro em análise",
-    text: "Sua solicitação para o Plano Fundador está em análise. Você receberá uma atualização por e-mail assim que houver liberação.",
-    label: "Voltar para o início",
-    href: "/",
-  },
   trial_unavailable: {
     title: "Acesso em preparação",
     text: "O fluxo do Teste Grátis ainda não está disponível neste ambiente de estabilização.",
@@ -50,6 +44,11 @@ const views = {
     label: "Solicitar reativação",
     href: "https://wa.me/5511971780101?text=Ol%C3%A1.%20Quero%20reativar%20meu%20acesso%20ao%20FII%20Select.",
   },
+};
+
+const directRedirects = {
+  pending_founder: "/assinar.html",
+  active: "/status-aprovado.html",
 };
 
 function renderView(view) {
@@ -81,12 +80,8 @@ loginForm?.addEventListener("submit", async (event) => {
     if (!result.authenticated) throw new Error("Não foi possível iniciar sua sessão.");
 
     const status = result.user.status;
-    if (status === "pending_founder") {
-      window.location.href = "/assinar.html";
-      return;
-    }
-    if (status === "active") {
-      window.location.href = "/status-aprovado.html";
+    if (directRedirects[status]) {
+      window.location.href = directRedirects[status];
       return;
     }
     if (status === "trial_active") return renderView("trial_unavailable");
