@@ -198,36 +198,36 @@
 
     <aside class="customer-detail-panel" id="detalhes-fundador" aria-label="Detalhes do cliente fundador">
       <div class="detail-sheet">
-        <h2>Detalhes do cliente</h2>
+        <h2>Detalhes do cliente - Plano Fundador</h2>
         <section>
           <h3>Dados Pessoais</h3>
           <div class="detail-card">
-            <p><strong>Nome</strong><span>Usuário não selecionado</span></p>
-            <p><strong>E-mail</strong><span>Não informado</span></p>
-            <p><strong>WhatsApp</strong><span>Não informado</span></p>
-            <p><strong>Corretora</strong><span>Não informada</span></p>
-            <p><strong>Tipo de pessoa</strong><span>Não informado</span></p>
+            <p><strong>Nome</strong><span data-detail-field="name">Usuário não selecionado</span></p>
+            <p><strong>E-mail</strong><span data-detail-field="email">Não informado</span></p>
+            <p><strong>WhatsApp</strong><span data-detail-field="phone">Não informado</span></p>
+            <p><strong>Corretora</strong><span data-detail-field="broker">Não informada</span></p>
+            <p><strong>Tipo de pessoa</strong><span data-detail-field="personType">Não informado</span></p>
           </div>
         </section>
         <section>
           <h3>Assinatura</h3>
           <div class="detail-card">
             <p><strong>Plano</strong><span>Programa Fundadores</span></p>
-            <p><strong>Situação atual</strong><span class="status-badge status-active">Ativo</span></p>
-            <p><strong>Data do cadastro</strong><span>Não informada</span></p>
-            <p><strong>Última atualização</strong><span>Não informada</span></p>
-            <p><strong>Última cobrança</strong><span>Não localizada</span></p>
-            <p><strong>E-mail usado no pagamento</strong><span>Não informado</span></p>
+            <p><strong>Situação atual</strong><span class="status-badge status-pending" data-detail-field="status">PENDENTE</span></p>
+            <p><strong>Data do cadastro</strong><span data-detail-field="createdAt">Não informada</span></p>
+            <p><strong>Última atualização</strong><span data-detail-field="updatedAt">Não informada</span></p>
+            <p><strong>Última cobrança</strong><span data-detail-field="lastBillingAt">Não localizada</span></p>
+            <p><strong>E-mail usado no pagamento</strong><span data-detail-field="paymentEmail">Não informado</span></p>
           </div>
         </section>
         <section>
           <h3>Observações internas</h3>
-          <p class="plain-note">Nenhuma observação registrada.</p>
+          <p class="plain-note" data-detail-field="internalNotes">Nenhuma observação interna registrada.</p>
         </section>
         <section>
           <h3>Histórico</h3>
-          <ul class="history-list">
-            <li>Nenhum evento registrado.</li>
+          <ul class="history-list" data-detail-history>
+            <li>Nenhum histórico registrado até o momento.</li>
           </ul>
         </section>
         <a class="detail-close" href="admin.html">Fechar</a>
@@ -240,32 +240,32 @@
         <section>
           <h3>Dados Pessoais</h3>
           <div class="detail-card">
-            <p><strong>Nome</strong><span>Usuário não selecionado</span></p>
-            <p><strong>E-mail</strong><span>Não informado</span></p>
-            <p><strong>WhatsApp</strong><span>Não informado</span></p>
-            <p><strong>Corretora</strong><span>Não informada</span></p>
-            <p><strong>Tipo de pessoa</strong><span>Não informado</span></p>
+            <p><strong>Nome</strong><span data-detail-field="name">Usuário não selecionado</span></p>
+            <p><strong>E-mail</strong><span data-detail-field="email">Não informado</span></p>
+            <p><strong>WhatsApp</strong><span data-detail-field="phone">Não informado</span></p>
+            <p><strong>Corretora</strong><span data-detail-field="broker">Não informada</span></p>
+            <p><strong>Tipo de pessoa</strong><span data-detail-field="personType">Não informado</span></p>
           </div>
         </section>
         <section>
           <h3>Assinatura</h3>
           <div class="detail-card">
             <p><strong>Plano</strong><span>Teste gratuito</span></p>
-            <p><strong>Situação atual</strong><span class="status-badge status-active">Teste Grátis Ativo</span></p>
-            <p><strong>Teste iniciado em</strong><span>Não informado</span></p>
-            <p><strong>Teste expira em</strong><span>Não informado</span></p>
-            <p><strong>Teste já utilizado</strong><span>Não</span></p>
-            <p><strong>E-mail usado no teste</strong><span>Não informado</span></p>
+            <p><strong>Situação atual</strong><span class="status-badge status-pending" data-detail-field="status">TESTE PENDENTE</span></p>
+            <p><strong>Teste iniciado em</strong><span data-detail-field="trialStartAt">Não informado</span></p>
+            <p><strong>Teste expira em</strong><span data-detail-field="trialEndAt">Não informado</span></p>
+            <p><strong>Teste já utilizado</strong><span data-detail-field="trialUsed">Não</span></p>
+            <p><strong>E-mail usado no teste</strong><span data-detail-field="email">Não informado</span></p>
           </div>
         </section>
         <section>
           <h3>Observações internas</h3>
-          <p class="plain-note">Nenhuma observação registrada.</p>
+          <p class="plain-note" data-detail-field="internalNotes">Nenhuma observação interna registrada.</p>
         </section>
         <section>
           <h3>Histórico</h3>
-          <ul class="history-list">
-            <li>Nenhum evento registrado.</li>
+          <ul class="history-list" data-detail-history>
+            <li>Nenhum histórico registrado até o momento.</li>
           </ul>
         </section>
         <a class="detail-close" href="admin.html">Fechar</a>

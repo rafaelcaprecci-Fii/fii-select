@@ -6123,6 +6123,18 @@ body.admin-dashboard-v2 .status-active {
   background: #257a28;
 }
 
+body.admin-dashboard-v2 .status-inactive {
+  background: #e83205;
+}
+
+body.admin-dashboard-v2 .status-archived {
+  background: #6b6d72;
+}
+
+body.admin-dashboard-v2 .detail-card .status-pending {
+  background: #d39b00;
+}
+
 body.admin-dashboard-v2 .plain-note,
 body.admin-dashboard-v2 .history-list {
   margin: 0 0 32px;

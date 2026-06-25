@@ -62,6 +62,14 @@ function planText(plan) {
   return String(plan || "").includes("teste") ? "Teste" : "Fundador";
 }
 
+function isTrialUser(user) {
+  return (
+    user?.intent === "trial" ||
+    ["pending_trial", "trial_active", "trial_finished"].includes(user?.status) ||
+    planText(user?.plan) === "Teste"
+  );
+}
+
 function intentText(intent) {
   return {
     trial: "Origem: teste",
@@ -73,6 +81,88 @@ function intentText(intent) {
 function updateText(selector, value) {
   const element = document.querySelector(selector);
   if (element) element.textContent = value;
+}
+
+function formatDetailDateTime(value, fallback) {
+  if (!value) return fallback;
+  const [date, time] = formatDateTime(value);
+  if (date === "-") return fallback;
+  return time ? `${date} ${time}` : date;
+}
+
+function detailStatus(user, trial) {
+  const status = String(user?.status || "").toLowerCase();
+  if (trial) {
+    if (status === "trial_active") return { text: "TESTE GRÁTIS ATIVO", className: "status-active" };
+    if (status === "trial_finished") return { text: "TESTE ENCERRADO", className: "status-archived" };
+    if (status === "pending_trial") return { text: "TESTE PENDENTE", className: "status-pending" };
+  }
+
+  if (["active", "approved"].includes(status)) return { text: "ATIVO", className: "status-active" };
+  if (status === "inactive") return { text: "INATIVO", className: "status-inactive" };
+  if (status === "archived") return { text: "ARQUIVADO", className: "status-archived" };
+  if (["pending", "pending_founder", "payment_pending", "awaiting_payment"].includes(status)) {
+    return { text: "PENDENTE", className: "status-pending" };
+  }
+  return { text: statusText(status).toUpperCase(), className: "status-pending" };
+}
+
+function setDetailField(panel, field, value) {
+  panel.querySelectorAll(`[data-detail-field="${field}"]`).forEach((element) => {
+    element.textContent = value;
+  });
+}
+
+function renderUserDetails(user) {
+  const trial = isTrialUser(user);
+  const panel = document.querySelector(trial ? "#detalhes-teste" : "#detalhes-fundador");
+  if (!panel) return;
+
+  setDetailField(panel, "name", user.name || "Investidor");
+  setDetailField(panel, "email", user.email || "Não informado");
+  setDetailField(panel, "phone", user.phone || "Não informado");
+  setDetailField(panel, "broker", user.broker || "Não informada");
+  setDetailField(panel, "personType", user.personType || "Não informado");
+  setDetailField(
+    panel,
+    "internalNotes",
+    user.internalNotes || "Nenhuma observação interna registrada.",
+  );
+
+  const status = detailStatus(user, trial);
+  const statusElement = panel.querySelector('[data-detail-field="status"]');
+  if (statusElement) {
+    statusElement.textContent = status.text;
+    statusElement.className = `status-badge ${status.className}`;
+  }
+
+  if (trial) {
+    setDetailField(panel, "trialStartAt", formatDetailDateTime(user.trialStartAt, "Não informado"));
+    setDetailField(panel, "trialEndAt", formatDetailDateTime(user.trialEndAt, "Não informado"));
+    setDetailField(panel, "trialUsed", user.trialUsed ? "Sim" : "Não");
+  } else {
+    setDetailField(panel, "createdAt", formatDetailDateTime(user.createdAt, "Não informada"));
+    setDetailField(panel, "updatedAt", formatDetailDateTime(user.updatedAt, "Não informada"));
+    setDetailField(panel, "lastBillingAt", formatDetailDateTime(user.lastBillingAt, "Não localizada"));
+    setDetailField(panel, "paymentEmail", user.paymentEmail || user.email || "Não informado");
+  }
+
+  const history = panel.querySelector("[data-detail-history]");
+  if (history) {
+    const entries = Array.isArray(user.history) ? user.history.filter(Boolean) : [];
+    history.replaceChildren();
+    if (!entries.length) {
+      const item = document.createElement("li");
+      item.textContent = "Nenhum histórico registrado até o momento.";
+      history.appendChild(item);
+    } else {
+      entries.forEach((entry) => {
+        const item = document.createElement("li");
+        item.textContent = String(entry);
+        history.appendChild(item);
+      });
+    }
+  }
 }
 
 function renderKpis() {
@@ -130,11 +220,13 @@ function renderUsers() {
           <td><b>${value}</b><small>${escapeHtml(statusText(user.status))}</small></td>
           <td><b>${escapeHtml(date)}</b><small>${escapeHtml(time)}</small></td>
           <td>
-            <a class="detail-link" href="#acoes-cliente" data-user-id="${escapeHtml(user.id)}">
-              ${escapeHtml(user.lastEmailTemplate || user.lastEmailError ? "Ver e-mail" : "Selecionar")}
-            </a>
+            <a
+              class="detail-link"
+              href="${isTrialUser(user) ? "#detalhes-teste" : "#detalhes-fundador"}"
+              data-user-detail="${escapeHtml(user.id)}"
+            >Ver Detalhe</a>
           </td>
-          <td><a class="menu-dots" href="#acoes-cliente" data-user-id="${escapeHtml(user.id)}" aria-label="Abrir ações">•••</a></td>
+          <td><a class="menu-dots" href="#acoes-cliente" data-user-actions="${escapeHtml(user.id)}" aria-label="Abrir ações">•••</a></td>
         </tr>
       `;
     })
@@ -182,9 +274,16 @@ async function preparePayment() {
 }
 
 tableBody?.addEventListener("click", (event) => {
-  const trigger = event.target.closest("[data-user-id]");
+  const detailTrigger = event.target.closest("[data-user-detail]");
+  if (detailTrigger) {
+    const user = users.find((item) => item.id === detailTrigger.dataset.userDetail);
+    if (user) renderUserDetails(user);
+    return;
+  }
+
+  const trigger = event.target.closest("[data-user-actions]");
   if (!trigger) return;
-  selectedUserId = trigger.dataset.userId;
+  selectedUserId = trigger.dataset.userActions;
   const user = users.find((item) => item.id === selectedUserId);
   const whatsapp = actionsModal?.querySelector(".status-whatsapp");
   const phone = String(user?.phone || "").replace(/\D/g, "");

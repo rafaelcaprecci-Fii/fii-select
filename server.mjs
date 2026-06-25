@@ -374,6 +374,15 @@ function publicUser(user) {
     paymentStatus: user.paymentStatus || "",
     history: user.history || [],
     operationalEvents: user.operationalEvents || [],
+    broker: user.broker || user.corretora || "",
+    personType: user.personType || user.tipoPessoa || "",
+    lastBillingAt: user.lastBillingAt || user.lastChargeAt || "",
+    paymentEmail: user.paymentEmail || user.email || "",
+    trialUsed:
+      typeof user.trialUsed === "boolean"
+        ? user.trialUsed
+        : Boolean(user.trialStartAt || user.trialStartedAt),
+    internalNotes: user.internalNotes || user.notes || user.observations || "",
   };
 }
 
