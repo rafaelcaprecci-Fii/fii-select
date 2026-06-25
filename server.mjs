@@ -14,6 +14,8 @@ const host = process.env.HOST || "127.0.0.1";
 const brapiToken = process.env.BRAPI_TOKEN || "";
 const adminUser = process.env.ADMIN_USER || "";
 const adminPassword = process.env.ADMIN_PASSWORD || "";
+const clientSessionCookie = "fii_select_session";
+const clientSessionMaxAge = 60 * 60 * 24 * 30;
 const protectedAdminRoutes = new Set(["/admin", "/admin/login", "/admin/usuarios", "/admin/testar-email"]);
 const protectedAdminApiPrefix = "/admin/api/";
 const platformContactUrl =
@@ -40,6 +42,7 @@ const eventLabel = {
 };
 const sandboxTickers = new Set(["MXRF11", "HGLG11"]);
 const cache = new Map();
+const clientSessions = new Map();
 let usersQueue = Promise.resolve();
 const fiiCatalog = [
   { ticker: "MXRF11", segmentType: "papel", label: "Maxi Renda", sandbox: true },
@@ -76,6 +79,48 @@ function safeCompare(a, b) {
   const left = Buffer.from(a);
   const right = Buffer.from(b);
   return left.length === right.length && timingSafeEqual(left, right);
+}
+
+function parseCookies(req) {
+  return Object.fromEntries(
+    String(req.headers.cookie || "")
+      .split(";")
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .map((part) => {
+        const separator = part.indexOf("=");
+        return separator === -1
+          ? [decodeURIComponent(part), ""]
+          : [decodeURIComponent(part.slice(0, separator)), decodeURIComponent(part.slice(separator + 1))];
+      }),
+  );
+}
+
+function createClientSession(res, req, userId) {
+  const token = randomUUID();
+  const expiresAt = Date.now() + clientSessionMaxAge * 1000;
+  const secure = String(req.headers["x-forwarded-proto"] || "").split(",")[0].trim() === "https";
+
+  clientSessions.set(token, { userId, expiresAt });
+  res.setHeader(
+    "Set-Cookie",
+    `${clientSessionCookie}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${clientSessionMaxAge}${secure ? "; Secure" : ""}`,
+  );
+}
+
+async function sessionUser(req, origin) {
+  const token = parseCookies(req)[clientSessionCookie] || "";
+  const session = clientSessions.get(token);
+  if (!session) return null;
+  if (session.expiresAt <= Date.now()) {
+    clientSessions.delete(token);
+    return null;
+  }
+
+  return withUsers(async (users) => {
+    await expireFinishedTrials(users, origin);
+    return users.find((user) => user.id === session.userId) || null;
+  });
 }
 
 function requireAdminAuth(req, res) {
@@ -923,7 +968,22 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === "/api/users/login-status" && req.method === "POST") {
       const body = await readJsonBody(req);
       const user = await findUserForLogin(body.email, origin);
-      return json(res, 200, { ok: true, user });
+      if (user) createClientSession(res, req, user.id);
+      return json(res, 200, { ok: true, authenticated: Boolean(user), user });
+    }
+    if (url.pathname === "/api/users/session" && req.method === "GET") {
+      const user = await sessionUser(req, origin);
+      if (!user) return json(res, 401, { ok: false, authenticated: false });
+      return json(res, 200, {
+        ok: true,
+        authenticated: true,
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          status: normalizeStatus(user.status),
+        },
+      });
     }
     if (url.pathname === "/api/health") {
       return json(res, 200, {

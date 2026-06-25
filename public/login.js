@@ -78,6 +78,7 @@ loginForm?.addEventListener("submit", async (event) => {
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || "Não foi possível consultar o cadastro.");
     if (!result.user) return renderView("not_found");
+    if (!result.authenticated) throw new Error("Não foi possível iniciar sua sessão.");
 
     const status = result.user.status;
     if (["active", "trial_active"].includes(status)) return renderView("allowed");
