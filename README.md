@@ -42,3 +42,4 @@ BRAPI_TOKEN=seu_token node server.mjs
 da API, os direitos de exibição e o enquadramento regulatório do conteúdo.
 
 Checkpoint: fluxos e e-mails validados em 2026-06-25.
+Checkpoint: Admin e ajustes validados em 2026-06-25.
