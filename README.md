@@ -42,3 +42,4 @@ BRAPI_TOKEN=seu_token node server.mjs
 da API, os direitos de exibição e o enquadramento regulatório do conteúdo.
 
 Force Railway redeploy - 2026-06-24
+Force Railway redeploy - 2026-06-24 - 2
