@@ -115,7 +115,7 @@ async function loadCustomerArea() {
         : "pending-badge",
   );
   const areaHome = document.querySelector("[data-area-home]");
-  if (areaHome) areaHome.href = areaPath || "/area-cliente/acompanhamento";
+  if (areaHome) areaHome.href = areaPath || "/login.html";
 
   const trialPeriod = document.querySelector("[data-trial-period]");
   trialPeriod.hidden = user.status !== "trial_active";

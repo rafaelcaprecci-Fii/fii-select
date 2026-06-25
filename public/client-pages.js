@@ -10,8 +10,8 @@ const primaryPageByStatus = {
   inactive: "/conta-inativa.html",
   canceled: "/conta-cancelada.html",
   archived: "/conta-arquivada.html",
-  rejected: "/area-cliente/acompanhamento",
-  pending: "/area-cliente/acompanhamento",
+  rejected: "/login.html",
+  pending: "/login.html",
 };
 
 const allowedPagesByStatus = {
@@ -152,12 +152,12 @@ async function loadClientPage() {
   if (!response.ok) throw new Error(result.error || "Não foi possível carregar seus dados.");
 
   const effectiveStatus =
-    ["awaiting_payment", "unpaid"].includes(result.user.paymentStatus)
+    ["payment_pending", "awaiting_payment", "unpaid"].includes(result.user.paymentStatus)
       ? result.user.paymentStatus
       : result.user.status;
   const allowedPages = allowedPagesByStatus[effectiveStatus] || [];
   const currentPath = normalizedPath();
-  const destination = primaryPageByStatus[effectiveStatus] || "/area-cliente/acompanhamento";
+  const destination = primaryPageByStatus[effectiveStatus] || "/login.html";
 
   if (!allowedPages.includes(currentPath)) return window.location.replace(destination);
   configurePage(result.user, result.paymentUrl);

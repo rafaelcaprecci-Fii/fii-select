@@ -259,7 +259,7 @@ async function sessionUser(req, origin) {
 }
 
 function canAccessTool(user) {
-  const blockedPayment = ["awaiting_payment", "unpaid"].includes(user?.paymentStatus);
+  const blockedPayment = ["payment_pending", "awaiting_payment", "unpaid"].includes(user?.paymentStatus);
   return Boolean(
     user &&
       !blockedPayment &&
@@ -269,7 +269,10 @@ function canAccessTool(user) {
 
 function clientAreaPath(user) {
   const status = normalizeStatus(user?.status);
-  if (["payment_pending", "awaiting_payment", "unpaid"].includes(status) || ["awaiting_payment", "unpaid"].includes(user?.paymentStatus)) {
+  if (
+    ["payment_pending", "awaiting_payment", "unpaid"].includes(status)
+    || ["payment_pending", "awaiting_payment", "unpaid"].includes(user?.paymentStatus)
+  ) {
     return "/status-pendente.html";
   }
   if (status === "pending_founder") return "/assinar.html";
@@ -280,7 +283,7 @@ function clientAreaPath(user) {
   if (status === "inactive") return "/conta-inativa.html";
   if (status === "canceled") return "/conta-cancelada.html";
   if (status === "archived") return "/conta-arquivada.html";
-  return "/area-cliente/acompanhamento";
+  return "/login.html";
 }
 
 function brevoTemplatePayload({ user, event, origin, emailFrom }) {
@@ -291,6 +294,8 @@ function brevoTemplatePayload({ user, event, origin, emailFrom }) {
   const params = brevoTemplateParams(user, origin);
   if (["cadastroRecebidoTeste", "cadastroRecebidoFundador"].includes(event)) {
     delete params.LINK_ACESSO;
+  } else {
+    delete params.LINK_LOGIN;
   }
   if (!params.EMAIL) throw new Error("E-mail do usuario vazio. Envio nao realizado.");
   if (!Number.isInteger(templateId) || templateId <= 0) {
@@ -982,10 +987,6 @@ async function serveStatic(req, res, pathname) {
     "/status-aprovado": "status-aprovado.html",
     "/conta": "conta.html",
     "/conta-inativa": "conta-inativa.html",
-    "/area-cliente": "area-cliente.html",
-    "/area-cliente/fundador": "area-cliente.html",
-    "/area-cliente/teste": "area-cliente.html",
-    "/area-cliente/acompanhamento": "area-cliente.html",
     "/ferramenta": "ferramenta.html",
     "/admin/login": "admin-login.html",
     "/admin": "admin.html",
@@ -1003,15 +1004,16 @@ async function serveStatic(req, res, pathname) {
       "/area-cliente/fundador",
       "/area-cliente/teste",
       "/area-cliente/acompanhamento",
-      "/ferramenta",
-      "/ferramenta.html",
     ].includes(pathname)
   ) {
     const user = await sessionUser(req, originFrom(req));
     if (!user) return redirect(res, "/login.html");
-    if (["/ferramenta", "/ferramenta.html"].includes(pathname) && !canAccessTool(user)) {
-      return redirect(res, clientAreaPath(user));
-    }
+    return redirect(res, clientAreaPath(user));
+  }
+  if (["/ferramenta", "/ferramenta.html"].includes(pathname)) {
+    const user = await sessionUser(req, originFrom(req));
+    if (!user) return redirect(res, "/login.html");
+    if (!canAccessTool(user)) return redirect(res, clientAreaPath(user));
   }
 
   const relative = routeMap[pathname] || pathname.slice(1);
