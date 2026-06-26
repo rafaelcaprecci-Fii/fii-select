@@ -44,3 +44,4 @@ da API, os direitos de exibição e o enquadramento regulatório do conteúdo.
 Checkpoint: fluxos e e-mails validados em 2026-06-25.
 Checkpoint: Admin e ajustes validados em 2026-06-25.
 Checkpoint: BRAPI conectada em 2026-06-25.
+Checkpoint: Roboto Slab global corrigida via CSP — OK em 2026-06-26.
