@@ -53,6 +53,7 @@ const sandboxTickers = new Set(["MXRF11", "HGLG11"]);
 const brapiTestTickers = ["MXRF11", "HGLG11", "KNCR11", "XPML11", "VISC11"];
 const cache = new Map();
 const clientSessions = new Map();
+const rateLimits = new Map();
 let usersQueue = Promise.resolve();
 const fiiCatalog = [
   { ticker: "MXRF11", segmentType: "papel", label: "Maxi Renda", sandbox: true },
@@ -79,10 +80,63 @@ const types = {
 
 function json(res, status, data) {
   res.writeHead(status, {
+    ...securityHeaders(),
     "Content-Type": "application/json; charset=utf-8",
     "Cache-Control": "no-store",
   });
   res.end(JSON.stringify(data));
+}
+
+function securityHeaders() {
+  return {
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+    "X-Frame-Options": "DENY",
+    "Content-Security-Policy": [
+      "default-src 'self'",
+      "script-src 'self'",
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data:",
+      "font-src 'self'",
+      "connect-src 'self'",
+      "form-action 'self'",
+      "base-uri 'self'",
+      "frame-ancestors 'none'",
+    ].join("; "),
+  };
+}
+
+function clientIp(req) {
+  return String(req.headers["x-forwarded-for"] || req.socket.remoteAddress || "local")
+    .split(",")[0]
+    .trim();
+}
+
+function checkRateLimit(req, res, bucket, limit, windowMs) {
+  const now = Date.now();
+  const key = `${bucket}:${clientIp(req)}`;
+  const current = rateLimits.get(key);
+  if (!current || current.resetAt <= now) {
+    rateLimits.set(key, { count: 1, resetAt: now + windowMs });
+    return true;
+  }
+
+  current.count += 1;
+  if (current.count <= limit) return true;
+
+  const retryAfter = Math.max(1, Math.ceil((current.resetAt - now) / 1000));
+  res.writeHead(429, {
+    ...securityHeaders(),
+    "Content-Type": "application/json; charset=utf-8",
+    "Cache-Control": "no-store",
+    "Retry-After": String(retryAfter),
+  });
+  res.end(JSON.stringify({ ok: false, error: "Muitas tentativas. Tente novamente em instantes." }));
+  return false;
+}
+
+function isAdminPath(pathname) {
+  return protectedAdminRoutes.has(pathname) || pathname.startsWith(protectedAdminApiPrefix);
 }
 
 function safeCompare(a, b) {
@@ -140,6 +194,7 @@ function requireAdminAuth(req, res) {
   const [scheme, encoded] = header.split(" ");
   if (scheme !== "Basic" || !encoded) {
     res.writeHead(401, {
+      ...securityHeaders(),
       "WWW-Authenticate": 'Basic realm="FII Select Admin"',
       "Cache-Control": "no-store",
     });
@@ -151,6 +206,7 @@ function requireAdminAuth(req, res) {
   const password = passwordParts.join(":");
   if (!safeCompare(user, adminUser) || !safeCompare(password, adminPassword)) {
     res.writeHead(401, {
+      ...securityHeaders(),
       "WWW-Authenticate": 'Basic realm="FII Select Admin"',
       "Cache-Control": "no-store",
     });
@@ -215,6 +271,27 @@ function addDays(date, days) {
 function nonEmptyString(value, fallback = "") {
   const normalized = String(value || "").trim();
   return normalized || fallback;
+}
+
+function cleanText(value, maxLength) {
+  return String(value || "")
+    .replace(/<[^>]*>/g, "")
+    .replace(/[\u0000-\u001F\u007F]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, maxLength);
+}
+
+function logInternalError(context, error) {
+  console.error(`${context}: ${error.message || "Falha inesperada."}`);
+}
+
+function publicEmailError() {
+  return "Não foi possível enviar o e-mail agora. Tente novamente em instantes.";
+}
+
+function publicDataError() {
+  return "Não foi possível consultar os dados no momento. Tente novamente em instantes.";
 }
 
 function brevoTemplateParams(user) {
@@ -285,7 +362,9 @@ async function sendBrevoTransactionalEmail({ user, event, origin }) {
 
   if (!response.ok) {
     const message = await response.text();
-    throw new Error(`Brevo API respondeu ${response.status}: ${message.slice(0, 180)}`);
+    const error = new Error(publicEmailError());
+    error.internalMessage = `Brevo API respondeu ${response.status}: ${message.slice(0, 180)}`;
+    throw error;
   }
 
   return { templateId: payload.templateId };
@@ -313,7 +392,9 @@ async function sendBrevoApiTestEmail() {
   });
   if (!response.ok) {
     const message = await response.text();
-    throw new Error(`Brevo API respondeu ${response.status}: ${message.slice(0, 180)}`);
+    const error = new Error(publicEmailError());
+    error.internalMessage = `Brevo API respondeu ${response.status}: ${message.slice(0, 180)}`;
+    throw error;
   }
 }
 
@@ -388,9 +469,12 @@ function publicUser(user) {
 }
 
 function validateRegistrationInput(input) {
-  const name = String(input.name || "").trim();
-  const email = String(input.email || "").trim().toLowerCase();
+  const name = cleanText(input.name, 80);
+  const email = cleanText(input.email, 254).toLowerCase();
   const phone = String(input.phone || "").replace(/\D/g, "");
+  const broker = cleanText(input.broker || input.corretora, 80);
+  const personType = cleanText(input.personType || input.tipoPessoa, 40);
+  const internalNotes = cleanText(input.internalNotes || input.notes || input.observations, 500);
   const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   const validPhone = phone.length >= 10 && phone.length <= 13 && !/^(\d)\1+$/.test(phone);
 
@@ -400,7 +484,15 @@ function validateRegistrationInput(input) {
   if (!phone) throw new Error("Informe seu WhatsApp.");
   if (!validPhone) throw new Error("Informe um WhatsApp válido.");
 
-  return { ...input, name, email, phone };
+  return {
+    ...input,
+    name,
+    email,
+    phone,
+    broker,
+    personType,
+    internalNotes,
+  };
 }
 
 function createUser(input) {
@@ -419,7 +511,7 @@ function createUser(input) {
     email: input.email,
     phone: input.phone,
     intent,
-    plan,
+    plan: cleanText(plan, 40),
     status,
     createdAt: now,
     updatedAt: now,
@@ -430,6 +522,9 @@ function createUser(input) {
     lastEmailError: "",
     lastPaymentLinkSentAt: "",
     paymentStatus: "",
+    broker: input.broker || "",
+    personType: input.personType || "",
+    internalNotes: input.internalNotes || "",
     history: [`${formatBrazilDateTime(now)} - Cadastro criado`],
   };
 }
@@ -552,7 +647,8 @@ async function sendAndRecord(user, event, origin) {
     user.history.unshift(`${formatBrazilDateTime(user.lastEmailSentAt)} - E-mail enviado: ${eventLabel[event]}`);
     return { ok: true, event, templateId };
   } catch (error) {
-    user.lastEmailError = error.message || "Falha ao enviar e-mail.";
+    if (error.internalMessage) logInternalError(`Brevo ${event}`, { message: error.internalMessage });
+    user.lastEmailError = error.message || publicEmailError();
     user.history = user.history || [];
     user.history.unshift(`${formatBrazilDateTime(new Date())} - Falha no e-mail ${eventLabel[event]}: ${user.lastEmailError}`);
     return { ok: false, event, error: user.lastEmailError };
@@ -650,7 +746,7 @@ async function resendUserEmail(id, origin) {
 }
 
 async function findUserForLogin(email) {
-  const normalizedEmail = String(email || "").trim().toLowerCase();
+  const normalizedEmail = cleanText(email, 254).toLowerCase();
   if (!normalizedEmail) throw new Error("Informe o e-mail.");
 
   return withUsers(async (users) => {
@@ -734,7 +830,9 @@ async function upstream(url) {
   const response = await fetch(url, { headers });
   if (!response.ok) {
     const message = await response.text();
-    throw new Error(`Fonte de dados respondeu ${response.status}: ${message.slice(0, 180)}`);
+    const error = new Error(publicDataError());
+    error.internalMessage = `Fonte de dados respondeu ${response.status}: ${message.slice(0, 180)}`;
+    throw error;
   }
   return response.json();
 }
@@ -744,7 +842,7 @@ async function getSelic() {
     const response = await fetch(
       "https://api.bcb.gov.br/dados/serie/bcdata.sgs.432/dados/ultimos/1?formato=json",
     );
-    if (!response.ok) throw new Error("Nao foi possivel consultar a Selic no Banco Central.");
+    if (!response.ok) throw new Error(publicDataError());
     const [latest] = await response.json();
     return { annualRate: Number(latest.valor) / 100, asOfDate: latest.data };
   });
@@ -806,10 +904,11 @@ async function testBrapiIndicators() {
           asOfDate: indicator.asOfDate || "",
         };
       } catch (error) {
+        if (error.internalMessage) logInternalError(`BRAPI teste ${ticker}`, { message: error.internalMessage });
         return {
           ticker,
           ok: false,
-          error: error.message || "Falha ao consultar a BRAPI.",
+          error: error.message || publicDataError(),
         };
       }
     }),
@@ -962,11 +1061,12 @@ async function comparison(url) {
       try {
         return { ok: true, ...(await valuation(innerUrl)) };
       } catch (error) {
+        if (error.internalMessage) logInternalError(`BRAPI comparação ${ticker}`, { message: error.internalMessage });
         return {
           ok: false,
           ticker,
           riskRate,
-          error: error.message,
+          error: error.message || publicDataError(),
           requiresToken: !brapiToken && !sandboxTickers.has(ticker),
         };
       }
@@ -1006,7 +1106,7 @@ async function serveStatic(req, res, pathname) {
   if (["/ferramenta", "/ferramenta.html"].includes(pathname)) {
     const user = await sessionUser(req);
     if (!canAccessTool(user)) {
-      res.writeHead(302, { Location: "/login.html", "Cache-Control": "no-store" });
+      res.writeHead(302, { ...securityHeaders(), Location: "/login.html", "Cache-Control": "no-store" });
       res.end();
       return;
     }
@@ -1018,6 +1118,7 @@ async function serveStatic(req, res, pathname) {
   try {
     const data = await readFile(file);
     res.writeHead(200, {
+      ...securityHeaders(),
       "Content-Type": types[extname(file)] || "application/octet-stream",
       "Cache-Control": "no-cache",
     });
@@ -1031,6 +1132,7 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url || "/", `http://${req.headers.host || "localhost"}`);
   const origin = originFrom(req);
   try {
+    if (isAdminPath(url.pathname) && !checkRateLimit(req, res, "admin", 120, 15 * 60 * 1000)) return;
     if (url.pathname === "/admin/testar-email") {
       if (req.method !== "GET") return json(res, 405, { ok: false, error: "Metodo nao permitido." });
       if (!requireAdminAuth(req, res)) return;
@@ -1064,6 +1166,7 @@ const server = http.createServer(async (req, res) => {
 
       const statusMatch = url.pathname.match(/^\/admin\/api\/users\/([^/]+)\/status$/);
       if (statusMatch && req.method === "PATCH") {
+        if (!checkRateLimit(req, res, "admin-status", 60, 10 * 60 * 1000)) return;
         const body = await readJsonBody(req);
         const result = await changeUserStatus(decodeURIComponent(statusMatch[1]), body.status, origin);
         return json(res, 200, { ok: true, ...result });
@@ -1077,6 +1180,7 @@ const server = http.createServer(async (req, res) => {
 
       const paymentMatch = url.pathname.match(/^\/admin\/api\/users\/([^/]+)\/payment-link$/);
       if (paymentMatch && req.method === "POST") {
+        if (!checkRateLimit(req, res, "admin-payment", 60, 10 * 60 * 1000)) return;
         const result = await prepareFounderPayment(decodeURIComponent(paymentMatch[1]));
         return json(res, 200, { ok: true, ...result });
       }
@@ -1084,6 +1188,7 @@ const server = http.createServer(async (req, res) => {
       return json(res, 404, { ok: false, error: "Rota administrativa nao encontrada." });
     }
     if (url.pathname === "/api/users/register" && req.method === "POST") {
+      if (!checkRateLimit(req, res, "register", 20, 10 * 60 * 1000)) return;
       try {
         const body = await readJsonBody(req);
         const result = await registerUser(body, origin);
@@ -1093,6 +1198,7 @@ const server = http.createServer(async (req, res) => {
       }
     }
     if (url.pathname === "/api/users/login-status" && req.method === "POST") {
+      if (!checkRateLimit(req, res, "client-login", 30, 10 * 60 * 1000)) return;
       const body = await readJsonBody(req);
       const user = await findUserForLogin(body.email);
       if (user) createClientSession(res, req, user.id);
@@ -1114,6 +1220,7 @@ const server = http.createServer(async (req, res) => {
       });
     }
     if (url.pathname === "/api/users/account-status" && req.method === "PATCH") {
+      if (!checkRateLimit(req, res, "account-status", 20, 10 * 60 * 1000)) return;
       const user = await sessionUser(req);
       if (!user) return json(res, 401, { ok: false, error: "Faça login para alterar sua conta." });
 
@@ -1170,9 +1277,14 @@ const server = http.createServer(async (req, res) => {
       if (!canAccessTool(user)) {
         return json(res, 403, { error: "A ferramenta ainda não está liberada para este cadastro." });
       }
-      if (url.pathname === "/api/valuation") return json(res, 200, await valuation(url));
-      if (url.pathname === "/api/suggestions") return json(res, 200, suggestions(url));
-      return json(res, 200, await comparison(url));
+      try {
+        if (url.pathname === "/api/valuation") return json(res, 200, await valuation(url));
+        if (url.pathname === "/api/suggestions") return json(res, 200, suggestions(url));
+        return json(res, 200, await comparison(url));
+      } catch (error) {
+        if (error.internalMessage) logInternalError(`BRAPI ${url.pathname}`, { message: error.internalMessage });
+        return json(res, 400, { error: error.message || publicDataError() });
+      }
     }
     if (url.pathname === "/api/demo-video" && req.method === "POST") {
       const chunks = [];
