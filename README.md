@@ -44,4 +44,17 @@ da API, os direitos de exibição e o enquadramento regulatório do conteúdo.
 Checkpoint: fluxos e e-mails validados em 2026-06-25.
 Checkpoint: Admin e ajustes validados em 2026-06-25.
 Checkpoint: BRAPI conectada em 2026-06-25.
-Checkpoint: Roboto Slab global corrigida via CSP — OK em 2026-06-26.
+Checkpoint: 
+Regra visual:
+Não alterar o padrão da fonte do FII Select.
+
+A fonte global do site é Roboto Slab.
+Manter Roboto Slab aplicada em todas as páginas, incluindo Home, Cadastro, Login, Assinar, Status, Conta, Ferramenta e Admin.
+
+Não substituir por system-ui, Arial, Inter, Helvetica, sans-serif ou outra fonte.
+
+Manter o carregamento da fonte funcionando via Google Fonts:
+- fonts.googleapis.com
+- fonts.gstatic.com
+
+Não alterar o CSP de fontes sem validar que Roboto Slab continua carregando corretamente. Em 2026-06-26.
