@@ -18,7 +18,7 @@ function roundedRect(x, y, w, h, r) {
 
 function text(value, x, y, size, color = "#ffffff", weight = 700, align = "left") {
   ctx.fillStyle = color;
-  ctx.font = `${weight} ${size}px system-ui, sans-serif`;
+  ctx.font = `${weight} ${size}px "Roboto Slab", serif`;
   ctx.textAlign = align;
   ctx.fillText(value, x, y);
 }
