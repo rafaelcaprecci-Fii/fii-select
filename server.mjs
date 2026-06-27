@@ -931,6 +931,318 @@ async function testBrapiIndicators() {
   };
 }
 
+function pickDefined(source, fields) {
+  if (!source || typeof source !== "object") return {};
+  return Object.fromEntries(
+    fields
+      .filter((field) => source[field] !== undefined)
+      .map((field) => [field, source[field]]),
+  );
+}
+
+function availableFields(source) {
+  return source && typeof source === "object" ? Object.keys(source).sort() : [];
+}
+
+async function diagnosticBrapiRequest(path) {
+  if (!brapiToken) {
+    return {
+      ok: false,
+      status: null,
+      error: "BRAPI_TOKEN não configurado no backend.",
+      data: null,
+    };
+  }
+
+  try {
+    const response = await fetch(`https://brapi.dev${path}`, {
+      headers: { Authorization: `Bearer ${brapiToken}` },
+    });
+    if (!response.ok) {
+      return {
+        ok: false,
+        status: response.status,
+        error: "A BRAPI não retornou dados para esta consulta.",
+        data: null,
+      };
+    }
+    return { ok: true, status: response.status, error: null, data: await response.json() };
+  } catch {
+    return {
+      ok: false,
+      status: null,
+      error: "Não foi possível consultar a BRAPI no momento.",
+      data: null,
+    };
+  }
+}
+
+async function brapiFiiDiagnostic(ticker) {
+  const endpointPaths = {
+    indicators: `/api/v2/fii/indicators?symbols=${encodeURIComponent(ticker)}`,
+    properties: `/api/v2/fii/properties?symbols=${encodeURIComponent(ticker)}`,
+    portfolio: `/api/v2/fii/portfolio?symbols=${encodeURIComponent(ticker)}`,
+    reports: `/api/v2/fii/reports?symbols=${encodeURIComponent(ticker)}&sortOrder=desc&limit=1`,
+    dividends: `/api/v2/fii/dividends?symbols=${encodeURIComponent(ticker)}&sortOrder=desc`,
+    quote: `/api/quote/${encodeURIComponent(ticker)}`,
+    cdi: "/api/v2/macro/latest?symbols=cdi",
+  };
+  const entries = await Promise.all(
+    Object.entries(endpointPaths).map(async ([name, path]) => [
+      name,
+      await diagnosticBrapiRequest(path),
+    ]),
+  );
+  const responses = Object.fromEntries(entries);
+  const indicator = responses.indicators.data?.fiis?.[0] || null;
+  const propertiesPayload = responses.properties.data?.fiis?.[0] || null;
+  const portfolioPayload = responses.portfolio.data?.fiis?.[0] || null;
+  const report = responses.reports.data?.reports?.[0] || null;
+  const quote = responses.quote.data?.results?.[0] || null;
+  const dividends = (responses.dividends.data?.dividends || [])
+    .filter((item) => !item.symbol || item.symbol === ticker)
+    .slice(0, 24);
+  const cdiResult = (responses.cdi.data?.results || []).find(
+    (item) => item.series?.slug === "cdi",
+  ) || responses.cdi.data?.results?.[0] || null;
+  const properties = (propertiesPayload?.properties || []).map((property) => ({
+    ...pickDefined(property, [
+      "name",
+      "identifier",
+      "address",
+      "city",
+      "state",
+      "propertyClass",
+      "area",
+      "unitCount",
+      "vacancyRate",
+      "delinquencyRate",
+      "revenueShare",
+      "leasedRate",
+    ]),
+    availableFields: availableFields(property),
+  }));
+  const portfolioLists = Object.fromEntries(
+    ["allocations", "financialAssets", "fundHoldings", "properties", "lands", "rights"]
+      .filter((key) => Array.isArray(portfolioPayload?.[key]))
+      .map((key) => [
+        key,
+        portfolioPayload[key].slice(0, 50).map((item) => ({
+          ...pickDefined(item, [
+            "name",
+            "symbol",
+            "cnpj",
+            "type",
+            "category",
+            "description",
+            "issuer",
+            "indexer",
+            "rate",
+            "value",
+            "amount",
+            "percentage",
+            "share",
+            "area",
+            "state",
+            "city",
+          ]),
+          availableFields: availableFields(item),
+        })),
+      ]),
+  );
+  const endpointStatus = Object.fromEntries(
+    Object.entries(responses).map(([name, result]) => [
+      name,
+      {
+        ok: result.ok,
+        status: result.status,
+        error: result.error,
+      },
+    ]),
+  );
+  const successfulEndpoints = Object.entries(endpointStatus)
+    .filter(([, result]) => result.ok)
+    .map(([name]) => name);
+  const failedEndpoints = Object.entries(endpointStatus)
+    .filter(([, result]) => !result.ok)
+    .map(([name]) => name);
+  const propertySummary = pickDefined(propertiesPayload?.summary, [
+    "count",
+    "totalArea",
+    "vacancyRate",
+    "averageVacancyRate",
+    "propertiesWithVacancy",
+  ]);
+  const portfolioSummary = {
+    ...pickDefined(portfolioPayload, ["symbol", "cnpj", "referenceDate", "version"]),
+    ...pickDefined(portfolioPayload?.summary, [
+      "totalValue",
+      "totalAssets",
+      "equity",
+      "cash",
+      "totalInvested",
+      "propertyCount",
+    ]),
+    availableFields: availableFields(portfolioPayload?.summary),
+  };
+
+  return {
+    ok: failedEndpoints.length === 0,
+    status: {
+      ticker,
+      requestedAt: new Date().toISOString(),
+      brapiTokenConfigured: Boolean(brapiToken),
+      endpointsConsulted: Object.keys(endpointPaths),
+      successfulEndpoints,
+      failedEndpoints,
+      endpointStatus,
+    },
+    data: {
+      market: {
+        ...pickDefined(indicator, [
+          "price",
+          "dividendYield12m",
+          "dividendYield1m",
+          "monthlyReturn",
+          "asOfDate",
+        ]),
+        ...pickDefined(quote, [
+          "regularMarketPrice",
+          "regularMarketChange",
+          "regularMarketChangePercent",
+          "regularMarketVolume",
+          "regularMarketDayHigh",
+          "regularMarketDayLow",
+          "regularMarketTime",
+        ]),
+        indicatorFields: availableFields(indicator),
+        quoteFields: availableFields(quote),
+      },
+      patrimonial: {
+        ...pickDefined(indicator, [
+          "navPerShare",
+          "priceToNav",
+          "equity",
+          "totalAssets",
+          "sharesOutstanding",
+          "totalInvestors",
+        ]),
+      },
+      cadastral: {
+        ...pickDefined(indicator, [
+          "symbol",
+          "name",
+          "cnpj",
+          "segmentType",
+          "segmentoAtuacao",
+          "mandate",
+          "tipoGestao",
+          "administratorName",
+          "administratorCnpj",
+          "administratorWebsite",
+          "managerName",
+        ]),
+      },
+      propertiesAndVacancy: {
+        ...propertySummary,
+        availableSummaryFields: availableFields(propertiesPayload?.summary),
+        properties,
+      },
+      portfolio: {
+        summary: portfolioSummary,
+        ...portfolioLists,
+      },
+      report: report
+        ? {
+          ...pickDefined(report, [
+            "symbol",
+            "cnpj",
+            "referenceDate",
+            "version",
+            "totalAssets",
+            "equity",
+            "navPerShare",
+            "adminFeeRate",
+            "monthlyReturn",
+            "monthlyPatrimonialReturn",
+            "monthlyDividendYield",
+            "amortizationRate",
+            "cash",
+            "liquidityNeeds",
+            "governmentBonds",
+            "privateBonds",
+            "fixedIncomeFunds",
+            "totalInvested",
+            "realEstateAssets",
+            "cri",
+            "lci",
+            "fiiHoldings",
+            "receivables",
+            "rentalReceivables",
+            "totalLiabilities",
+            "url",
+            "documentUrl",
+            "downloadUrl",
+          ]),
+          availableFields: availableFields(report),
+        }
+        : null,
+      dividends: dividends.map((dividend) => ({
+        ...pickDefined(dividend, [
+          "symbol",
+          "label",
+          "rate",
+          "referenceDate",
+          "declaredDate",
+          "lastDatePrior",
+          "paymentDate",
+          "type",
+        ]),
+        availableFields: availableFields(dividend),
+      })),
+      cdi: cdiResult
+        ? {
+          series: pickDefined(cdiResult.series, [
+            "slug",
+            "name",
+            "description",
+            "unit",
+            "frequency",
+            "category",
+          ]),
+          latest: pickDefined(cdiResult.latest, ["date", "value"]),
+          availableFields: availableFields(cdiResult),
+        }
+        : null,
+    },
+    toolDiagnostic: {
+      crossedReadingCandidates: {
+        priceToNav: indicator?.priceToNav ?? null,
+        navPerShare: indicator?.navPerShare ?? null,
+        equity: indicator?.equity ?? null,
+        dividendYield12m: indicator?.dividendYield12m ?? null,
+        propertyCount: propertiesPayload?.summary?.count ?? (properties.length || null),
+        declaredArea: propertiesPayload?.summary?.totalArea ?? null,
+        consolidatedVacancy: propertiesPayload?.summary?.vacancyRate ?? null,
+        hasVacancyByProperty: properties.some((property) => property.vacancyRate != null),
+        hasDelinquencyByProperty: properties.some((property) => property.delinquencyRate != null),
+        hasRevenueShareByProperty: properties.some((property) => property.revenueShare != null),
+        segmentType: indicator?.segmentType ?? null,
+        segmentoAtuacao: indicator?.segmentoAtuacao ?? null,
+        hasPortfolioComposition: Object.values(portfolioLists).some((items) => items.length > 0),
+        historicalDividendsReturned: dividends.length,
+        cdiAvailable: Boolean(cdiResult?.latest?.value),
+      },
+      cautions: [
+        "O campo area é apresentado como área declarada; não deve ser chamado de ABL sem confirmação da semântica.",
+        "Vacância física e financeira não são separadas quando a BRAPI não fornece campos distintos.",
+        "A presença do CDI permite comparação educacional como benchmark, mas não comprova exposição do fundo ao CDI.",
+        "Exposição a CDI, IPCA ou prefixado só deve ser informada quando houver campo explícito na carteira.",
+      ],
+    },
+  };
+}
+
 async function valuation(url) {
   const ticker = (url.searchParams.get("ticker") || "MXRF11").trim().toUpperCase();
   if (!/^[A-Z]{4}[0-9]{2}$/.test(ticker)) {
@@ -1208,6 +1520,23 @@ const server = http.createServer(async (req, res) => {
       if (url.pathname === "/admin/api/brapi-test" && req.method === "GET") {
         const result = await testBrapiIndicators();
         return json(res, result.configured ? 200 : 503, result);
+      }
+
+      if (url.pathname === "/admin/api/maintenance/brapi-fii-diagnostic") {
+        if (req.method !== "GET") {
+          return json(res, 405, { ok: false, error: "Método não permitido." });
+        }
+        const ticker = String(
+          url.searchParams.get("ticker") || url.searchParams.get("Ticker") || "JSRE11",
+        ).trim().toUpperCase();
+        if (!/^[A-Z]{4}[0-9]{2}$/.test(ticker)) {
+          return json(res, 400, {
+            ok: false,
+            error: "Informe um ticker de FII no formato JSRE11.",
+          });
+        }
+        const result = await brapiFiiDiagnostic(ticker);
+        return json(res, result.status.brapiTokenConfigured ? 200 : 503, result);
       }
 
       const statusMatch = url.pathname.match(/^\/admin\/api\/users\/([^/]+)\/status$/);
