@@ -58,3 +58,36 @@ Manter o carregamento da fonte funcionando via Google Fonts:
 - fonts.gstatic.com
 
 Não alterar o CSP de fontes sem validar que Roboto Slab continua carregando corretamente. Em 2026-06-26.
+
+## Endpoint de manutenção
+
+Criar futuramente um endpoint interno de manutenção para diagnóstico operacional do FII Select.
+
+Objetivo:
+Permitir checagens controladas do sistema sem alterar a lógica validada do fluxo.
+
+Escopo inicial do endpoint:
+- verificar status do servidor
+- verificar se variáveis essenciais estão configuradas, sem expor valores
+- verificar conexão com BRAPI
+- verificar disponibilidade básica da Brevo, sem disparar e-mails reais
+- verificar se o arquivo de usuários está acessível pelo backend
+- verificar contagem/estado operacional relevante do MVP
+
+Regras:
+- não expor tokens, chaves ou senhas
+- não retornar BRAPI_TOKEN, BREVO_API_KEY, ADMIN_PASSWORD ou qualquer variável sensível
+- endpoint deve ser protegido
+- não deve alterar usuários
+- não deve alterar status
+- não deve enviar e-mails
+- não deve consultar dados sensíveis sem necessidade
+- não deve alterar fluxo, login, cadastro, Admin, ferramenta, Brevo ou BRAPI
+
+Possível caminho futuro:
+/admin/manutencao
+ou
+/admin/api/maintenance
+
+Status:
+Planejado. Não implementar sem diagnóstico e aprovação.
