@@ -59,14 +59,14 @@ const fiiCatalog = [
   { ticker: "MXRF11", segmentType: "papel", label: "Maxi Renda", sandbox: true },
   { ticker: "KNCR11", segmentType: "papel", label: "Kinea Rendimentos", sandbox: false },
   { ticker: "KNSC11", segmentType: "papel", label: "Kinea Securities", sandbox: false },
-  { ticker: "KNIP11", segmentType: "papel", label: "Kinea Indices de Precos", sandbox: false },
+  { ticker: "KNIP11", segmentType: "papel", label: "Kinea Índices de Preços", sandbox: false },
   { ticker: "RBRR11", segmentType: "papel", label: "RBR Rendimento High Grade", sandbox: false },
   { ticker: "CPTS11", segmentType: "papel", label: "Capitania Securities II", sandbox: false },
-  { ticker: "HGLG11", segmentType: "tijolo", label: "Patria Log", sandbox: true },
+  { ticker: "HGLG11", segmentType: "tijolo", label: "Pátria Log", sandbox: true },
   { ticker: "XPLG11", segmentType: "tijolo", label: "XP Log", sandbox: false },
-  { ticker: "BTLG11", segmentType: "tijolo", label: "BTG Pactual Logistica", sandbox: false },
-  { ticker: "LVBI11", segmentType: "tijolo", label: "VBI Logistico", sandbox: false },
-  { ticker: "BRCO11", segmentType: "tijolo", label: "Bresco Logistica", sandbox: false },
+  { ticker: "BTLG11", segmentType: "tijolo", label: "BTG Pactual Logística", sandbox: false },
+  { ticker: "LVBI11", segmentType: "tijolo", label: "VBI Logístico", sandbox: false },
+  { ticker: "BRCO11", segmentType: "tijolo", label: "Bresco Logística", sandbox: false },
   { ticker: "GGRC11", segmentType: "tijolo", label: "GGR Covepi Renda", sandbox: false },
 ];
 
@@ -962,10 +962,10 @@ async function valuation(url) {
         : "PROXIMO DO VP";
   const divergence =
     reading === "DESAGIO" && priceToNav >= 1.05
-      ? "Renda sugere desagio, mas a cota negocia acima do VP. Vale investigar a qualidade e a recorrencia dos rendimentos."
+      ? "Renda sugere deságio, mas a cota negocia acima do VP. Vale investigar a qualidade e a recorrência dos rendimentos."
       : reading === "AGIO" && priceToNav <= 0.95
-        ? "Renda sugere agio, mas a cota negocia abaixo do VP. O relatorio gerencial pode explicar riscos ou eventos que pressionam o preco."
-        : "As leituras por renda e patrimonio nao apresentam uma divergencia relevante.";
+        ? "Renda sugere ágio, mas a cota negocia abaixo do VP. O relatório gerencial pode explicar riscos ou eventos que pressionam o preço."
+        : "As leituras por renda e patrimônio não apresentam uma divergência relevante.";
 
   return {
     ticker,

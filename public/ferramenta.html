@@ -56,6 +56,11 @@
               <input name="growthRate" id="growth-rate" type="range" min="-2" max="8" step="0.25" value="3" />
               <output id="growth-output">3,00%</output>
             </div>
+            <small>
+              Estimativa usada para projetar a evolução dos rendimentos ao longo do tempo. Quanto maior o
+              crescimento esperado, maior tende a ser o valor justo estimado, mantendo as demais variáveis
+              constantes.
+            </small>
           </label>
 
           <label>
@@ -64,7 +69,10 @@
               <input name="recurrence" id="recurrence" type="range" min="50" max="100" step="1" value="95" />
               <output id="recurrence-output">95%</output>
             </div>
-            <small>Reduz eventos não recorrentes na média histórica.</small>
+            <small>
+              Indica o quanto os dividendos têm se mantido frequentes e consistentes ao longo do tempo. Ajuda
+              a avaliar a previsibilidade da renda e reduz o peso de eventos não recorrentes na média histórica.
+            </small>
           </label>
 
           <button type="submit">Atualizar estimativa</button>
