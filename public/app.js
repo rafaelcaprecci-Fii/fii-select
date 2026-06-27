@@ -21,7 +21,6 @@ function bindRange(inputId, outputId, transform = (value) => value / 100) {
 
 bindRange("#risk-rate", "#risk-output");
 bindRange("#growth-rate", "#growth-output");
-bindRange("#recurrence", "#recurrence-output", (value) => value / 100);
 bindRange("#shared-risk-rate", "#shared-risk-output");
 
 function setText(selector, value) {
@@ -58,12 +57,18 @@ function addTicker(ticker) {
   refreshComparison();
 }
 
-async function loadSuggestions(ticker = currentTicker()) {
+async function loadSuggestions(fund = { ticker: currentTicker() }) {
   try {
-    const response = await fetch(`/api/suggestions?ticker=${encodeURIComponent(ticker)}`);
+    const params = new URLSearchParams({
+      ticker: fund.ticker,
+      segmentType: fund.segmentType || "",
+      segmentoAtuacao: fund.segmentoAtuacao || "",
+    });
+    const response = await fetch(`/api/suggestions?${params}`);
     const result = await response.json();
     if (!response.ok) throw new Error(result.error);
     setText("#suggestion-origin", result.ticker);
+    setText("#suggestion-note", result.note);
     suggestionList.innerHTML = result.suggestions
       .map(
         (item) => `
@@ -102,7 +107,6 @@ async function refreshComparison() {
     riskRate: String(sharedRiskRate),
     individualRiskRates: riskRateParams(),
     growthRate: String(Number(form.elements.growthRate.value) / 100),
-    recurrence: String(Number(form.elements.recurrence.value) / 100),
   });
 
   try {
@@ -166,7 +170,6 @@ async function submit(event) {
     ticker: data.get("ticker"),
     riskRate: String(Number(data.get("riskRate")) / 100),
     growthRate: String(Number(data.get("growthRate")) / 100),
-    recurrence: String(Number(data.get("recurrence")) / 100),
   });
 
   try {
@@ -185,9 +188,14 @@ async function submit(event) {
     setText("#required-return", percent(result.assumptions.requiredReturn));
     setText("#normalized-dividend", `${money(result.valuation.normalizedMonthlyDividend)} / mês`);
     setText("#dividends-used", `${result.valuation.dividendsUsed} meses`);
+    setText("#recurrence-note", result.valuation.recurrenceNote);
     setText("#divergence", result.valuation.divergence);
     setReading(result.valuation.reading);
-    loadSuggestions(result.ticker);
+    loadSuggestions({
+      ticker: result.ticker,
+      segmentType: result.fund.segmentType,
+      segmentoAtuacao: result.fund.segmentoAtuacao,
+    });
   } catch (cause) {
     error.textContent = cause.message || "Não foi possível atualizar a estimativa.";
   } finally {

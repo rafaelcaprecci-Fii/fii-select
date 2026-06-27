@@ -56,18 +56,27 @@ const clientSessions = new Map();
 const rateLimits = new Map();
 let usersQueue = Promise.resolve();
 const fiiCatalog = [
-  { ticker: "MXRF11", segmentType: "papel", label: "Maxi Renda", sandbox: true },
-  { ticker: "KNCR11", segmentType: "papel", label: "Kinea Rendimentos", sandbox: false },
-  { ticker: "KNSC11", segmentType: "papel", label: "Kinea Securities", sandbox: false },
-  { ticker: "KNIP11", segmentType: "papel", label: "Kinea Índices de Preços", sandbox: false },
-  { ticker: "RBRR11", segmentType: "papel", label: "RBR Rendimento High Grade", sandbox: false },
-  { ticker: "CPTS11", segmentType: "papel", label: "Capitania Securities II", sandbox: false },
-  { ticker: "HGLG11", segmentType: "tijolo", label: "Pátria Log", sandbox: true },
-  { ticker: "XPLG11", segmentType: "tijolo", label: "XP Log", sandbox: false },
-  { ticker: "BTLG11", segmentType: "tijolo", label: "BTG Pactual Logística", sandbox: false },
-  { ticker: "LVBI11", segmentType: "tijolo", label: "VBI Logístico", sandbox: false },
-  { ticker: "BRCO11", segmentType: "tijolo", label: "Bresco Logística", sandbox: false },
-  { ticker: "GGRC11", segmentType: "tijolo", label: "GGR Covepi Renda", sandbox: false },
+  { ticker: "MXRF11", segmentType: "papel", segmentoAtuacao: "Títulos e Valores Mobiliários", label: "Maxi Renda", sandbox: true },
+  { ticker: "KNCR11", segmentType: "papel", segmentoAtuacao: "Títulos e Valores Mobiliários", label: "Kinea Rendimentos", sandbox: false },
+  { ticker: "KNSC11", segmentType: "papel", segmentoAtuacao: "Títulos e Valores Mobiliários", label: "Kinea Securities", sandbox: false },
+  { ticker: "KNIP11", segmentType: "papel", segmentoAtuacao: "Títulos e Valores Mobiliários", label: "Kinea Índices de Preços", sandbox: false },
+  { ticker: "RBRR11", segmentType: "papel", segmentoAtuacao: "Títulos e Valores Mobiliários", label: "RBR Rendimento High Grade", sandbox: false },
+  { ticker: "CPTS11", segmentType: "papel", segmentoAtuacao: "Títulos e Valores Mobiliários", label: "Capitania Securities II", sandbox: false },
+  { ticker: "HGLG11", segmentType: "tijolo", segmentoAtuacao: "Logística", label: "Pátria Log", sandbox: true },
+  { ticker: "XPLG11", segmentType: "tijolo", segmentoAtuacao: "Logística", label: "XP Log", sandbox: false },
+  { ticker: "BTLG11", segmentType: "tijolo", segmentoAtuacao: "Logística", label: "BTG Pactual Logística", sandbox: false },
+  { ticker: "LVBI11", segmentType: "tijolo", segmentoAtuacao: "Logística", label: "VBI Logístico", sandbox: false },
+  { ticker: "BRCO11", segmentType: "tijolo", segmentoAtuacao: "Logística", label: "Bresco Logística", sandbox: false },
+  { ticker: "HGRE11", segmentType: "tijolo", segmentoAtuacao: "Lajes Corporativas", label: "Pátria Escritórios", sandbox: false },
+  { ticker: "RCRB11", segmentType: "tijolo", segmentoAtuacao: "Lajes Corporativas", label: "Rio Bravo Renda Corporativa", sandbox: false },
+  { ticker: "BRCR11", segmentType: "tijolo", segmentoAtuacao: "Lajes Corporativas", label: "BTG Pactual Corporate Office", sandbox: false },
+  { ticker: "PVBI11", segmentType: "tijolo", segmentoAtuacao: "Lajes Corporativas", label: "VBI Prime Properties", sandbox: false },
+  { ticker: "XPML11", segmentType: "tijolo", segmentoAtuacao: "Shoppings", label: "XP Malls", sandbox: false },
+  { ticker: "VISC11", segmentType: "tijolo", segmentoAtuacao: "Shoppings", label: "Vinci Shopping Centers", sandbox: false },
+  { ticker: "HGBS11", segmentType: "tijolo", segmentoAtuacao: "Shoppings", label: "Hedge Brasil Shopping", sandbox: false },
+  { ticker: "HSML11", segmentType: "tijolo", segmentoAtuacao: "Shoppings", label: "HSI Malls", sandbox: false },
+  { ticker: "HGRU11", segmentType: "tijolo", segmentoAtuacao: "Renda Urbana", label: "Pátria Renda Urbana", sandbox: false },
+  { ticker: "TRXF11", segmentType: "tijolo", segmentoAtuacao: "Renda Urbana", label: "TRX Real Estate", sandbox: false },
 ];
 
 const types = {
@@ -941,6 +950,19 @@ async function valuation(url) {
 
   const averageMonthlyDividend =
     dividends.reduce((sum, item) => sum + Number(item.rate || 0), 0) / dividends.length;
+  const dividendVariance =
+    dividends.reduce((sum, item) => sum + (Number(item.rate || 0) - averageMonthlyDividend) ** 2, 0) /
+    dividends.length;
+  const dividendVariation =
+    averageMonthlyDividend > 0 ? Math.sqrt(dividendVariance) / averageMonthlyDividend : Infinity;
+  const recurrenceNote =
+    dividends.length < 9
+      ? "Não há dados suficientes para avaliar a recorrência dos dividendos com segurança."
+      : dividendVariation <= 0.15
+        ? "A recorrência dos dividendos parece consistente no histórico disponível, mas rendimentos passados não garantem pagamentos futuros."
+        : dividendVariation <= 0.35
+          ? "O fundo apresenta distribuições recorrentes no histórico disponível, mas a análise deve considerar as variações dos rendimentos ao longo do tempo."
+          : "Os rendimentos apresentam variações relevantes no histórico disponível. A recorrência deve ser analisada com cautela.";
   const normalizedMonthlyDividend = averageMonthlyDividend * recurrence;
   const nextTwelveMonthsDividend = normalizedMonthlyDividend * 12 * (1 + growthRate);
   const fairValue = nextTwelveMonthsDividend / (requiredReturn - growthRate);
@@ -991,6 +1013,7 @@ async function valuation(url) {
       dividendsUsed: dividends.length,
       averageMonthlyDividend: round(averageMonthlyDividend, 4),
       normalizedMonthlyDividend: round(normalizedMonthlyDividend, 4),
+      recurrenceNote,
       nextTwelveMonthsDividend: round(nextTwelveMonthsDividend, 4),
       fairValue: round(fairValue),
       premiumDiscount: round(premiumDiscount, 4),
@@ -1011,21 +1034,44 @@ function suggestions(url) {
     throw new Error("Informe um ticker de FII no formato MXRF11.");
   }
   const selected = fiiCatalog.find((item) => item.ticker === ticker);
-  const segmentType = selected?.segmentType || url.searchParams.get("segmentType") || "papel";
-  const matches = fiiCatalog
-    .filter((item) => item.ticker !== ticker && item.segmentType === segmentType)
+  const segmentType = selected?.segmentType || url.searchParams.get("segmentType") || "";
+  const segmentoAtuacao = selected?.segmentoAtuacao || url.searchParams.get("segmentoAtuacao") || "";
+  const normalizeSegment = (value) =>
+    value.normalize("NFD").replaceAll(/[\u0300-\u036f]/g, "").trim().toLowerCase();
+  const sameType = fiiCatalog.filter(
+    (item) => item.ticker !== ticker && item.segmentType === segmentType,
+  );
+  const exactMatches = segmentoAtuacao
+    ? sameType.filter(
+      (item) => normalizeSegment(item.segmentoAtuacao) === normalizeSegment(segmentoAtuacao),
+    )
+    : [];
+  const candidates = exactMatches.length ? exactMatches : sameType;
+  const precision = exactMatches.length ? "segmento" : sameType.length ? "tipo" : "indisponivel";
+  const matches = candidates
     .slice(0, 5)
     .map((item) => ({
       ...item,
       availableNow: Boolean(brapiToken || item.sandbox),
-      reason: `Mesmo tipo de fundo: ${segmentType}`,
+      reason:
+        precision === "segmento"
+          ? `Mesmo tipo e segmento: ${segmentType} / ${segmentoAtuacao}`
+          : `Mesmo tipo de fundo: ${segmentType}`,
     }));
 
   return {
     ticker,
     segmentType,
+    segmentoAtuacao,
+    precision,
     suggestions: matches,
-    source: selected ? "catalogo inicial do MVP" : "tipo informado pelo usuario",
+    note:
+      precision === "segmento"
+        ? "Comparáveis priorizados pelo mesmo tipo e segmento de atuação."
+        : precision === "tipo"
+          ? "Não há comparáveis suficientes do mesmo segmento no catálogo atual. A seleção considera apenas o tipo do fundo e pode ser menos precisa."
+          : "Não há dados suficientes de tipo e segmento para sugerir comparáveis com segurança.",
+    source: "catálogo inicial do MVP com classificação da consulta atual",
   };
 }
 

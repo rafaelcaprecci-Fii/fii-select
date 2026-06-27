@@ -57,21 +57,18 @@
               <output id="growth-output">3,00%</output>
             </div>
             <small>
-              Estimativa usada para projetar a evolução dos rendimentos ao longo do tempo. Quanto maior o
-              crescimento esperado, maior tende a ser o valor justo estimado, mantendo as demais variáveis
-              constantes.
+              Essa premissa representa uma estimativa de crescimento dos rendimentos e entra no modelo como
+              a taxa de crescimento esperada dos dividendos. Quanto maior o valor informado, maior tende a ser
+              o valor justo estimado, mantendo as demais variáveis constantes. Para uma análise conservadora,
+              use 0%. Uma premissa entre 1% e 3% ao ano representa uma análise moderada. Valores superiores
+              exigem fundamento claro. Na dúvida, use 0%.
             </small>
           </label>
 
           <label>
-            Recorrência dos dividendos
-            <div class="range-line">
-              <input name="recurrence" id="recurrence" type="range" min="50" max="100" step="1" value="95" />
-              <output id="recurrence-output">95%</output>
-            </div>
-            <small>
-              Indica o quanto os dividendos têm se mantido frequentes e consistentes ao longo do tempo. Ajuda
-              a avaliar a previsibilidade da renda e reduz o peso de eventos não recorrentes na média histórica.
+            Leitura da recorrência dos dividendos
+            <small id="recurrence-note" aria-live="polite">
+              Aguardando o histórico do fundo para avaliar a recorrência dos dividendos.
             </small>
           </label>
 
@@ -178,7 +175,7 @@
           <div>
             <p class="eyebrow">SUGESTÃO AUTOMÁTICA</p>
             <h3>FIIs parecidos com <span id="suggestion-origin">MXRF11</span></h3>
-            <p>A primeira versão usa o mesmo tipo de fundo. Com o token Pro, o ranking pode considerar DY, P/VP, patrimônio e carteira.</p>
+            <p id="suggestion-note">Aguardando a classificação do fundo por tipo e segmento de atuação.</p>
           </div>
           <div class="suggestion-list" id="suggestion-list"></div>
         </div>
