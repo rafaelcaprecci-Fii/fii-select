@@ -378,7 +378,6 @@ async function submit(event) {
     setText("#normalized-dividend", `${money(result.valuation.normalizedMonthlyDividend)} / mês`);
     setText("#dividends-used", `${result.valuation.dividendsUsed} meses`);
     setText("#recurrence-note", result.valuation.recurrenceNote);
-    setText("#divergence", result.valuation.divergence);
     setReading(result.valuation.reading);
     loadCrossedReading(result.ticker, result.fund);
     loadSuggestions({
