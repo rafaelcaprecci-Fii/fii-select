@@ -5,6 +5,7 @@ const comparisonBody = document.querySelector("#comparison-body");
 const suggestionList = document.querySelector("#suggestion-list");
 const compareTickers = ["MXRF11"];
 const rowRiskRates = new Map([["MXRF11", 2.5]]);
+let crossedReadingRequestId = 0;
 
 const money = (value) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
@@ -41,6 +42,194 @@ function escapeHtml(value) {
     .replaceAll('"', "&quot;");
 }
 
+function normalizedText(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replaceAll(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+}
+
+function formatFundType(value) {
+  const type = normalizedText(value);
+  if (type === "fof") return "FOF";
+  if (type === "tijolo") return "Tijolo";
+  if (type === "papel") return "Papel";
+  if (type === "hibrido") return "Híbrido";
+  if (type === "fiagro") return "Fiagro";
+  return value ? String(value) : "";
+}
+
+function formatFundSegment(value) {
+  const segment = normalizedText(value);
+  if (!segment) return "";
+  if (segment === "shoppings" || segment === "shopping") return "Shopping";
+  if (segment === "logistica") return "Logística";
+  if (segment.includes("lajes corporativas") || segment.includes("escritorio")) {
+    return "Laje corporativa";
+  }
+  if (
+    segment.includes("titulo") ||
+    segment.includes("valor mobiliario") ||
+    segment.includes("multicategoria")
+  ) {
+    return "Multicategoria";
+  }
+  return String(value);
+}
+
+function formatFundClassification(fund) {
+  const rawType = fund.segmentType || fund.fundType || fund.type;
+  const normalizedType = normalizedText(rawType);
+  const type = formatFundType(rawType);
+  const segment = ["papel", "fof", "hibrido"].includes(normalizedType)
+    ? "Multicategoria"
+    : formatFundSegment(fund.segmentoAtuacao || fund.segment);
+  return [type, segment].filter(Boolean).join(" - ");
+}
+
+function optionalMoney(value) {
+  if (value === null || value === undefined || value === "") return "";
+  return Number.isFinite(Number(value)) ? money(Number(value)) : "";
+}
+
+function optionalPercent(value) {
+  if (value === null || value === undefined || value === "") return "";
+  return Number.isFinite(Number(value)) ? percent(Number(value)) : "";
+}
+
+function crossedFact(label, value) {
+  if (value === "" || value === null || value === undefined) return "";
+  return `<article><small>${escapeHtml(label)}</small><strong>${escapeHtml(value)}</strong></article>`;
+}
+
+function renderCrossedReading(result, fallbackFund = {}) {
+  const common = result.common || {};
+  const specific = result.typeSpecific || {};
+  const hasNormalizedType = result.type && result.type !== "desconhecido";
+  const classification = formatFundClassification({
+    fundType: hasNormalizedType ? result.type : fallbackFund.segmentType,
+    segment: common.segment || fallbackFund.segmentoAtuacao,
+  });
+  setText("#crossed-classification", classification || "Classificação não disponível");
+
+  const commonFacts = [
+    crossedFact("Patrimônio líquido", optionalMoney(common.equity)),
+    crossedFact("Ativos totais", optionalMoney(common.totalAssets)),
+    crossedFact("Passivos totais", optionalMoney(common.totalLiabilities)),
+    crossedFact("VP por cota", optionalMoney(common.navPerShare)),
+    crossedFact(
+      "P/VP",
+      common.priceToNav !== null &&
+      common.priceToNav !== undefined &&
+      common.priceToNav !== "" &&
+      Number.isFinite(Number(common.priceToNav))
+        ? `${Number(common.priceToNav).toFixed(2).replace(".", ",")}x`
+        : "",
+    ),
+    crossedFact("Alavancagem", optionalPercent(common.leverage)),
+    crossedFact("Passivos / ativos", optionalPercent(common.liabilitiesToAssets)),
+    crossedFact(
+      "Histórico de rendimentos",
+      Array.isArray(common.dividendHistory) && common.dividendHistory.length
+        ? `${common.dividendHistory.length} registros`
+        : "",
+    ),
+  ].filter(Boolean);
+  document.querySelector("#crossed-reading-grid").innerHTML =
+    commonFacts.join("") || "<p>Dados patrimoniais adicionais não disponíveis.</p>";
+
+  const specificFacts = [];
+  if (result.type === "tijolo") {
+    specificFacts.push(
+      crossedFact("Quantidade de imóveis", specific.propertyCount),
+      crossedFact(
+        "Área declarada dos imóveis",
+        Number.isFinite(Number(specific.declaredArea))
+          ? `${new Intl.NumberFormat("pt-BR").format(Number(specific.declaredArea))} m²`
+          : "",
+      ),
+      crossedFact("Vacância consolidada", optionalPercent(specific.consolidatedVacancy)),
+      crossedFact(
+        "Vacância por imóvel",
+        specific.vacancyByProperty?.length
+          ? `${specific.vacancyByProperty.length} imóveis com dado disponível`
+          : "",
+      ),
+      crossedFact(
+        "Inadimplência por imóvel",
+        specific.delinquencyByProperty?.length
+          ? `${specific.delinquencyByProperty.length} imóveis com dado disponível`
+          : "",
+      ),
+      crossedFact(
+        "Participação na receita",
+        specific.revenueShareByProperty?.length
+          ? `${specific.revenueShareByProperty.length} imóveis com dado disponível`
+          : "",
+      ),
+    );
+    if (specific.mainProperties?.length) {
+      specificFacts.push(
+        crossedFact(
+          "Principais imóveis",
+          specific.mainProperties.map((property) => property.name).filter(Boolean).join(", "),
+        ),
+      );
+    }
+  }
+  if (result.type === "papel") {
+    specificFacts.push(
+      crossedFact("Quantidade de CRIs", specific.criCount),
+      crossedFact("Valor total em CRIs", optionalMoney(specific.totalCriValue)),
+      crossedFact("Quantidade de LCIs", specific.lciCount),
+      crossedFact("Valor total em LCIs", optionalMoney(specific.totalLciValue)),
+      crossedFact(
+        "Títulos públicos",
+        Array.isArray(specific.governmentBonds)
+          ? `${specific.governmentBonds.length} registros`
+          : optionalMoney(specific.governmentBonds),
+      ),
+      crossedFact(
+        "Cotas de FIIs",
+        specific.fundHoldings?.length ? `${specific.fundHoldings.length} posições` : "",
+      ),
+      crossedFact(
+        "Inadimplência de créditos",
+        optionalPercent(specific.creditDelinquencyRate),
+      ),
+    );
+  }
+  document.querySelector("#crossed-type-specific").innerHTML =
+    specificFacts.filter(Boolean).join("");
+
+  const cautions = Array.isArray(result.cautions) ? result.cautions : [];
+  document.querySelector("#crossed-cautions").innerHTML = cautions
+    .map((caution) => `<li>${escapeHtml(caution)}</li>`)
+    .join("");
+}
+
+async function loadCrossedReading(ticker, fallbackFund) {
+  const requestId = ++crossedReadingRequestId;
+  setText("#crossed-classification", "Carregando fundamentos...");
+  document.querySelector("#crossed-reading-grid").innerHTML = "";
+  document.querySelector("#crossed-type-specific").innerHTML = "";
+  document.querySelector("#crossed-cautions").innerHTML = "";
+  try {
+    const response = await fetch(
+      `/api/crossed-reading?ticker=${encodeURIComponent(ticker)}`,
+    );
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error);
+    if (requestId === crossedReadingRequestId) renderCrossedReading(result, fallbackFund);
+  } catch {
+    if (requestId !== crossedReadingRequestId) return;
+    setText("#crossed-classification", "Fundamentos adicionais indisponíveis");
+    document.querySelector("#crossed-reading-grid").innerHTML =
+      "<p>Não foi possível carregar os dados de mercado estruturados no momento.</p>";
+  }
+}
+
 function currentTicker() {
   return form.elements.ticker.value.trim().toUpperCase();
 }
@@ -75,7 +264,7 @@ async function loadSuggestions(fund = { ticker: currentTicker() }) {
           <div class="suggestion-card">
             <div>
               <strong>${escapeHtml(item.ticker)}</strong>
-              <small>${escapeHtml(item.label)} • ${escapeHtml(item.segmentType)}</small>
+              <small>${escapeHtml(formatFundClassification(item))}</small>
             </div>
             <button class="secondary suggestion-add" type="button" data-ticker="${escapeHtml(item.ticker)}">
               ${item.availableNow ? "Adicionar" : "Adicionar • Pro"}
@@ -128,7 +317,7 @@ async function refreshComparison() {
 
         return `
           <tr>
-            <td><strong>${escapeHtml(row.ticker)}</strong><br><small>${escapeHtml(row.fund.segmentType || "")}</small></td>
+            <td><strong>${escapeHtml(row.ticker)}</strong><br><small>${escapeHtml(formatFundClassification(row.fund))}</small></td>
             <td><input class="row-risk" data-ticker="${escapeHtml(row.ticker)}" type="number" min="0" max="30" step="0.25" value="${escapeHtml((row.assumptions.riskRate * 100).toFixed(2))}" />%</td>
             <td>${money(row.fund.currentPrice)}</td>
             <td>${escapeHtml(row.fund.priceToNav.toFixed(2).replace(".", ","))}x</td>
@@ -191,6 +380,7 @@ async function submit(event) {
     setText("#recurrence-note", result.valuation.recurrenceNote);
     setText("#divergence", result.valuation.divergence);
     setReading(result.valuation.reading);
+    loadCrossedReading(result.ticker, result.fund);
     loadSuggestions({
       ticker: result.ticker,
       segmentType: result.fund.segmentType,

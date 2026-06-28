@@ -978,16 +978,19 @@ async function diagnosticBrapiRequest(path) {
   }
 }
 
-async function brapiFiiDiagnostic(ticker) {
+async function brapiFiiDiagnostic(
+  ticker,
+  { includeQuote = true, includeCdi = true } = {},
+) {
   const endpointPaths = {
     indicators: `/api/v2/fii/indicators?symbols=${encodeURIComponent(ticker)}`,
     properties: `/api/v2/fii/properties?symbols=${encodeURIComponent(ticker)}`,
     portfolio: `/api/v2/fii/portfolio?symbols=${encodeURIComponent(ticker)}`,
     reports: `/api/v2/fii/reports?symbols=${encodeURIComponent(ticker)}&sortOrder=desc&limit=1`,
     dividends: `/api/v2/fii/dividends?symbols=${encodeURIComponent(ticker)}&sortOrder=desc`,
-    quote: `/api/quote/${encodeURIComponent(ticker)}`,
-    cdi: "/api/v2/macro/latest?symbols=cdi",
   };
+  if (includeQuote) endpointPaths.quote = `/api/quote/${encodeURIComponent(ticker)}`;
+  if (includeCdi) endpointPaths.cdi = "/api/v2/macro/latest?symbols=cdi";
   const entries = await Promise.all(
     Object.entries(endpointPaths).map(async ([name, path]) => [
       name,
@@ -999,13 +1002,13 @@ async function brapiFiiDiagnostic(ticker) {
   const propertiesPayload = responses.properties.data?.fiis?.[0] || null;
   const portfolioPayload = responses.portfolio.data?.fiis?.[0] || null;
   const report = responses.reports.data?.reports?.[0] || null;
-  const quote = responses.quote.data?.results?.[0] || null;
+  const quote = responses.quote?.data?.results?.[0] || null;
   const dividends = (responses.dividends.data?.dividends || [])
     .filter((item) => !item.symbol || item.symbol === ticker)
     .slice(0, 24);
-  const cdiResult = (responses.cdi.data?.results || []).find(
+  const cdiResult = (responses.cdi?.data?.results || []).find(
     (item) => item.series?.slug === "cdi",
-  ) || responses.cdi.data?.results?.[0] || null;
+  ) || responses.cdi?.data?.results?.[0] || null;
   const properties = (propertiesPayload?.properties || []).map((property) => ({
     ...pickDefined(property, [
       "name",
@@ -1259,6 +1262,16 @@ async function brapiFiiDiagnostic(ticker) {
     data: diagnostic.data,
   });
   return diagnostic;
+}
+
+async function crossedReading(ticker) {
+  return cached(`crossed-reading:${ticker}`, 15 * 60 * 1000, async () => {
+    const diagnostic = await brapiFiiDiagnostic(ticker, {
+      includeQuote: false,
+      includeCdi: false,
+    });
+    return diagnostic.normalizedCrossedReading;
+  });
 }
 
 async function valuation(url) {
@@ -1664,7 +1677,10 @@ const server = http.createServer(async (req, res) => {
         mode: brapiToken ? "token configurado" : "sandbox",
       });
     }
-    if (["/api/valuation", "/api/suggestions", "/api/comparison"].includes(url.pathname)) {
+    if (
+      ["/api/valuation", "/api/suggestions", "/api/comparison", "/api/crossed-reading"]
+        .includes(url.pathname)
+    ) {
       const user = await sessionUser(req);
       if (!user) return json(res, 401, { error: "Faça login para acessar a ferramenta." });
       if (!canAccessTool(user)) {
@@ -1673,6 +1689,13 @@ const server = http.createServer(async (req, res) => {
       try {
         if (url.pathname === "/api/valuation") return json(res, 200, await valuation(url));
         if (url.pathname === "/api/suggestions") return json(res, 200, suggestions(url));
+        if (url.pathname === "/api/crossed-reading") {
+          const ticker = (url.searchParams.get("ticker") || "").trim().toUpperCase();
+          if (!/^[A-Z]{4}[0-9]{2}$/.test(ticker)) {
+            return json(res, 400, { error: "Informe um ticker de FII no formato MXRF11." });
+          }
+          return json(res, 200, await crossedReading(ticker));
+        }
         return json(res, 200, await comparison(url));
       } catch (error) {
         if (error.internalMessage) logInternalError(`BRAPI ${url.pathname}`, { message: error.internalMessage });

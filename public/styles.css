@@ -1256,6 +1256,17 @@ button:disabled { cursor: progress; opacity: 0.65; transform: none; }
 .insight { margin-top: 14px; border-left: 4px solid #0f766e; border-radius: 10px; padding: 12px 14px; background: #f2fbf9; }
 .insight span { color: #0f766e; font-size: 10px; font-weight: 900; letter-spacing: 0.1em; }
 .insight p { margin: 6px 0 0; color: #486581; font-size: 13px; line-height: 1.5; }
+.insight h3 { margin: 8px 0 0; color: #243b53; font-size: 17px; }
+.crossed-reading-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
+.crossed-reading-grid article { border: 1px solid #ccebe6; border-radius: 8px; padding: 9px 10px; background: #fff; }
+.crossed-reading-grid small { margin: 0 0 4px; color: #829ab1; font-size: 10px; font-weight: 700; }
+.crossed-reading-grid strong { display: block; color: #243b53; font-size: 13px; line-height: 1.35; }
+.crossed-reading-grid p { grid-column: 1 / -1; }
+.crossed-type-specific:empty, .crossed-cautions:empty { display: none; }
+.crossed-cautions { margin: 10px 0 0; padding-left: 17px; color: #486581; font-size: 11px; line-height: 1.45; }
+.crossed-divergence { margin-top: 11px !important; border-top: 1px solid #ccebe6; padding-top: 9px; }
+.crossed-divergence strong { color: #243b53; }
+.crossed-divergence #divergence { color: inherit; font-size: inherit; font-weight: inherit; letter-spacing: 0; }
 
 details { margin-top: 16px; border-radius: 13px; padding: 13px 15px; background: #f4f8fb; color: #486581; font-size: 13px; line-height: 1.55; }
 summary { cursor: pointer; color: #243b53; font-weight: 800; }
@@ -1316,6 +1327,7 @@ td input { width: 74px; border: 1px solid #bcccdc; border-radius: 8px; padding: 
   .compare-toolbar button, .compact { width: 100%; margin-top: 12px; }
   .suggestions { grid-template-columns: 1fr; }
   .suggestion-list { grid-template-columns: 1fr; }
+  .crossed-reading-grid { grid-template-columns: 1fr; }
 }
 
 /* MVP site shell */
