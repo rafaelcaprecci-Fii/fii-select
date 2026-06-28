@@ -3,6 +3,7 @@ import { randomUUID, timingSafeEqual } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { extname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
+import { normalizeCrossedReading } from "./lib/crossed-reading.mjs";
 
 const root = fileURLToPath(new URL(".", import.meta.url));
 const publicDir = join(root, "public");
@@ -1031,15 +1032,23 @@ async function brapiFiiDiagnostic(ticker) {
           ...pickDefined(item, [
             "name",
             "symbol",
+            "ticker",
             "cnpj",
             "type",
             "category",
+            "assetClass",
             "description",
             "issuer",
+            "issuerCnpj",
             "indexer",
             "rate",
+            "delinquencyRate",
+            "creditDelinquencyRate",
             "value",
             "amount",
+            "quantity",
+            "count",
+            "declaredValue",
             "percentage",
             "share",
             "area",
@@ -1076,17 +1085,20 @@ async function brapiFiiDiagnostic(ticker) {
   const portfolioSummary = {
     ...pickDefined(portfolioPayload, ["symbol", "cnpj", "referenceDate", "version"]),
     ...pickDefined(portfolioPayload?.summary, [
+      "totalItems",
+      "declaredValue",
       "totalValue",
       "totalAssets",
       "equity",
       "cash",
       "totalInvested",
       "propertyCount",
+      "creditDelinquencyRate",
     ]),
     availableFields: availableFields(portfolioPayload?.summary),
   };
 
-  return {
+  const diagnostic = {
     ok: failedEndpoints.length === 0,
     status: {
       ticker,
@@ -1179,6 +1191,7 @@ async function brapiFiiDiagnostic(ticker) {
             "fiiHoldings",
             "receivables",
             "rentalReceivables",
+            "creditDelinquencyRate",
             "totalLiabilities",
             "url",
             "documentUrl",
@@ -1241,6 +1254,11 @@ async function brapiFiiDiagnostic(ticker) {
       ],
     },
   };
+  diagnostic.normalizedCrossedReading = normalizeCrossedReading({
+    ticker,
+    data: diagnostic.data,
+  });
+  return diagnostic;
 }
 
 async function valuation(url) {
