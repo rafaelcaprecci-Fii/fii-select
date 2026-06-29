@@ -1,0 +1,409 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>FII Select — Protótipo da ferramenta</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Roboto+Slab:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+    <style>
+      :root {
+        --navy: #0c1f36;
+        --indigo: #252855;
+        --gold: #c38f05;
+        --ink: #2d364f;
+        --muted: #626265;
+        --line: #e2e2e7;
+        --paper: #fff;
+        --canvas: #f8f8f8;
+        --red: #e93d3d;
+        --green: #0e6c22;
+        --shadow: 0 2px 8px rgba(12, 31, 54, 0.05);
+      }
+
+      * { box-sizing: border-box; }
+      html { scroll-behavior: smooth; }
+      body {
+        margin: 0;
+        background: var(--canvas);
+        color: var(--ink);
+        font-family: "Roboto Slab", Georgia, serif;
+      }
+
+      button, input { font: inherit; }
+      button { cursor: default; }
+
+      .topbar {
+        height: 92px;
+        background: var(--navy);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 max(32px, calc((100vw - 1260px) / 2));
+      }
+
+      .topbar-main {
+        display: flex;
+        align-items: center;
+        gap: 72px;
+      }
+
+      .brand-logo {
+        display: block;
+        width: 224px;
+        height: auto;
+        object-fit: contain;
+      }
+
+      .nav { display: flex; align-items: center; gap: 38px; }
+      .nav a, .logout {
+        color: #fff;
+        font-size: 17px;
+        font-weight: 800;
+        text-decoration: none;
+      }
+      .nav a.active { border-bottom: 3px solid #fff; padding-bottom: 5px; }
+      .logout { color: var(--gold); }
+
+      .page-title {
+        min-height: 116px;
+        padding: 24px max(32px, calc((100vw - 1320px) / 2));
+        background: #fff;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.15);
+        position: relative;
+      }
+
+      h1, h2, h3, p { margin-top: 0; }
+      h1 { margin-bottom: 5px; color: rgba(0,0,0,.58); font-size: clamp(25px, 3vw, 36px); line-height: 1.15; }
+      .page-title p { margin: 0; color: rgba(0,0,0,.55); font-size: 15px; }
+      main { width: min(1320px, calc(100% - 40px)); margin: 0 auto; padding: 28px 0 60px; }
+      section { margin-bottom: 46px; }
+
+      .section-head { margin: 0 0 18px; }
+      .section-head h2 { margin: 0 0 6px; font-size: 24px; line-height: 1.1; color: var(--ink); }
+      .section-head p { margin: 0; font-size: 14px; line-height: 1.6; }
+
+      .grid { display: grid; gap: 12px; }
+      .grid-3 { grid-template-columns: repeat(3, 1fr); }
+      .grid-4 { grid-template-columns: repeat(4, 1fr); }
+
+      .card {
+        background: var(--paper);
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        box-shadow: var(--shadow);
+        overflow: hidden;
+      }
+
+      .card-title {
+        min-height: 52px;
+        padding: 15px 24px;
+        border-bottom: 1px solid rgba(63,64,95,.15);
+        font-size: 17px;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+      }
+
+      .card-body { min-height: 110px; padding: 20px 24px; }
+      .ticker {
+        width: 78%;
+        padding: 16px 18px;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: #f5f5f5;
+        color: var(--indigo);
+        font-size: 23px;
+        font-weight: 800;
+      }
+
+      .range-row { display: flex; align-items: center; gap: 15px; margin: 16px 0 14px; }
+      input[type="range"] { width: 100%; accent-color: var(--gold); }
+      output { min-width: 60px; text-align: right; font-size: 13px; font-weight: 700; color: var(--navy); }
+      small { color: var(--muted); font-size: 10px; line-height: 1.4; }
+
+      .actions { display: flex; justify-content: flex-end; margin-top: 18px; }
+      .button {
+        border: 0;
+        border-radius: 6px;
+        padding: 11px 22px;
+        background: var(--gold);
+        color: #fff;
+        font-size: 12px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: .02em;
+      }
+
+      .result-banner {
+        min-height: 90px;
+        padding: 18px 10%;
+        border-radius: 6px;
+        background: var(--indigo);
+        color: #fff;
+        display: grid;
+        grid-template-columns: 1fr 1fr auto;
+        align-items: center;
+        gap: 30px;
+        margin-bottom: 14px;
+      }
+
+      .result-banner > span:first-child {
+        color: var(--gold);
+        font-size: 23px;
+        font-weight: 800;
+        transform: translateX(-50px);
+      }
+      .result-banner strong { font-size: 36px; }
+      .badge {
+        display: inline-flex;
+        min-width: 56px;
+        min-height: 21px;
+        align-items: center;
+        justify-content: center;
+        padding: 3px 10px;
+        border-radius: 999px;
+        border: 1px solid #fb5757;
+        background: rgba(225,54,0,.4);
+        color: #fff;
+        font-size: 8px;
+        font-weight: 700;
+        text-transform: uppercase;
+      }
+
+      .result-banner .badge {
+        min-width: 98px;
+        min-height: 34px;
+        padding: 6px 18px;
+        color: #fff;
+        font-size: 14.45px;
+        font-weight: 900;
+      }
+
+      .metric { min-height: 112px; }
+      .metric .label { padding: 13px 20px; border-bottom: 1px solid rgba(63,64,95,.15); font-size: 14px; }
+      .metric .value { padding: 17px 20px 4px; font-size: 19px; font-weight: 800; color: var(--ink); }
+      .metric .hint { padding: 0 20px 13px; font-size: 9px; color: var(--muted); text-transform: uppercase; }
+
+      .cross-grid { grid-template-columns: repeat(4, 1fr); }
+      .cross-grid .metric { min-height: 92px; }
+      .cross-grid .metric .label { font-size: 12px; padding: 11px 16px; }
+      .cross-grid .metric .value { font-size: 15px; padding: 13px 16px; }
+
+      .note-card { min-height: 128px; padding: 18px; font-size: 11px; line-height: 1.55; }
+      .note-card strong { display: block; margin-bottom: 8px; font-size: 13px; font-weight: 900; }
+      .note-card p { margin: 0 0 7px; }
+      .note-card p:last-child { margin-bottom: 0; }
+      .property-description { font-size: 13px; }
+
+      .compare-control { padding: 18px 24px; display: grid; grid-template-columns: 1fr auto; gap: 30px; align-items: center; margin-bottom: 14px; }
+      .compare-control label { display: block; font-weight: 700; margin-bottom: 7px; }
+      .compare-control .range-row { margin: 0; }
+
+      .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; background: #fff; }
+      table { width: 100%; border-collapse: collapse; table-layout: fixed; min-width: 1040px; }
+      th { background: var(--indigo); color: #fff; padding: 14px 10px; text-align: center; font-size: 11px; text-transform: uppercase; }
+      td { padding: 15px 10px; border-bottom: 1px solid #f0f0f4; font-size: 12px; font-weight: 700; text-align: center; vertical-align: middle; }
+      th:first-child, td:first-child { width: 18%; text-align: left; padding-left: 28px; }
+      th:nth-child(2), td:nth-child(2) { width: 13%; }
+      th:nth-child(3), td:nth-child(3) { width: 11%; }
+      th:nth-child(4), td:nth-child(4) { width: 9%; }
+      th:nth-child(5), td:nth-child(5) { width: 13%; }
+      th:nth-child(6), td:nth-child(6) { width: 14%; }
+      th:nth-child(7), td:nth-child(7) { width: 12%; }
+      th:nth-child(8), td:nth-child(8) { width: 10%; }
+      td small { display: block; margin-top: 4px; text-transform: none; }
+      tr:last-child td { border-bottom: 0; }
+      .risk {
+        display: inline-block;
+        min-width: 78px;
+        padding: 6px 10px;
+        border: 1px solid #a9aea8;
+        border-radius: 15px;
+        background: rgba(98,98,101,.1);
+        text-align: center;
+      }
+      .remove { color: var(--red); border: 1px solid rgba(251,87,87,.7); background: rgba(233,61,61,.09); }
+
+      .suggestions { display: grid; grid-template-columns: 290px 1fr; gap: 28px; align-items: start; }
+      .suggestions h2 { margin-bottom: 5px; font-size: 22px; }
+      .suggestions p { font-size: 13px; line-height: 1.5; }
+      .fund-list { grid-template-columns: repeat(3, 1fr); }
+      .fund-card { padding: 15px 18px; display: grid; grid-template-columns: 1fr auto; gap: 6px; }
+      .fund-card strong { font-size: 17px; }
+      .fund-card small { grid-column: 1; }
+      .add { align-self: end; color: var(--green); border: 1px solid var(--green); background: rgba(14,108,34,.12); padding: 5px 13px; border-radius: 4px; font-size: 9px; font-weight: 700; text-transform: uppercase; }
+
+      .prototype-note {
+        margin: 50px 0 0;
+        text-align: center;
+        color: #777;
+        font-size: 11px;
+      }
+
+      @media (max-width: 900px) {
+        .topbar { height: auto; min-height: 92px; padding: 18px 24px; }
+        .topbar-main { gap: 30px; }
+        .brand-logo { width: 170px; }
+        .nav { gap: 18px; }
+        main { width: min(100% - 28px, 680px); }
+        .grid-3, .grid-4, .cross-grid, .fund-list { grid-template-columns: repeat(2, 1fr); }
+        .result-banner { padding: 20px 25px; grid-template-columns: 1fr 1fr; }
+        .result-banner > span:first-child { transform: none; }
+        .result-banner .badge { grid-column: 1 / -1; justify-self: start; }
+        .suggestions { grid-template-columns: 1fr; }
+      }
+
+      @media (max-width: 560px) {
+        .topbar-main { width: 100%; justify-content: space-between; }
+        .topbar { flex-wrap: wrap; gap: 14px; }
+        .brand-logo { width: 145px; }
+        .nav { gap: 12px; }
+        .nav a { font-size: 13px; }
+        .logout { margin-left: auto; font-size: 13px; }
+        .grid-3, .grid-4, .cross-grid, .fund-list { grid-template-columns: 1fr; }
+        .page-title { padding-left: 20px; padding-right: 20px; }
+        .page-title p { line-height: 1.45; }
+        .result-banner { grid-template-columns: 1fr; }
+        .compare-control { grid-template-columns: 1fr; gap: 14px; }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="topbar-main">
+        <img class="brand-logo" src="../public/ASSETS/logo-header-fii-select.png" alt="FII Select" />
+        <nav class="nav" aria-label="Navegação principal">
+          <a href="#" tabindex="-1">Conta</a>
+          <a href="#" tabindex="-1">Status</a>
+          <a class="active" href="#" tabindex="-1">Ferramenta</a>
+        </nav>
+      </div>
+      <a class="logout" href="#" tabindex="-1">Sair</a>
+    </header>
+
+    <header class="page-title">
+      <h1>Estimativa de valor justo por renda</h1>
+      <p>Consulte um fundo imobiliário, ajuste a taxa de risco e veja uma triagem inspirada no modelo de Gordon.</p>
+    </header>
+
+    <main>
+      <section>
+        <div class="section-head">
+          <h2>Premissas</h2>
+          <p>Você controla o risco. Os dados do fundo são atualizados pela API.</p>
+        </div>
+        <div class="grid grid-3">
+          <article class="card">
+            <div class="card-title">Ticker do FII</div>
+            <div class="card-body"><div class="ticker">MXRF11</div></div>
+          </article>
+          <article class="card">
+            <div class="card-title">Taxa de risco adicional</div>
+            <div class="card-body">
+              <div class="range-row"><input type="range" value="25" tabindex="-1" /><output>2,50%</output></div>
+              <small>Acrescida à Selic para formar o retorno exigido.</small>
+            </div>
+          </article>
+          <article class="card">
+            <div class="card-title">Crescimento esperado dos rendimentos</div>
+            <div class="card-body">
+              <div class="range-row"><input type="range" value="30" tabindex="-1" /><output>3,00%</output></div>
+              <small>Representa uma premissa anual para o crescimento dos rendimentos.</small>
+            </div>
+          </article>
+        </div>
+        <div class="actions"><button class="button" type="button">Atualizar estimativa</button></div>
+      </section>
+
+      <section>
+        <div class="section-head"><h2>Leitura do fundo</h2><p>MXRF11 | XP Asset Management</p></div>
+        <div class="result-banner">
+          <span>Valor justo estimado</span>
+          <strong>R$ 10,84</strong>
+          <span class="badge">Deságio</span>
+        </div>
+        <div class="grid grid-4">
+          <article class="card metric"><div class="label">Preço observado</div><div class="value">R$ 10,18</div></article>
+          <article class="card metric"><div class="label">P/VP</div><div class="value">0,96x</div><div class="hint">Desconto patrimonial</div></article>
+          <article class="card metric"><div class="label">Dividendo normalizado</div><div class="value">R$ 0,10 / mês</div></article>
+          <article class="card metric"><div class="label">Selic automática</div><div class="value">10,50%</div></article>
+          <article class="card metric"><div class="label">Ágio / deságio</div><div class="value">−6,09%</div></article>
+          <article class="card metric"><div class="label">VP por cota</div><div class="value">R$ 10,58</div></article>
+          <article class="card metric"><div class="label">Retorno exigido</div><div class="value">13,00%</div></article>
+          <article class="card metric"><div class="label">Histórico utilizado</div><div class="value">24 meses</div></article>
+        </div>
+      </section>
+
+      <section>
+        <div class="section-head"><h2>Leitura Cruzada</h2><p>Renda, patrimônio e características operacionais do fundo.</p></div>
+        <div class="grid cross-grid">
+          <article class="card metric"><div class="label">Patrimônio líquido</div><div class="value">R$ 3,86 bi</div></article>
+          <article class="card metric"><div class="label">Ativos totais</div><div class="value">R$ 4,12 bi</div></article>
+          <article class="card metric"><div class="label">Passivos totais</div><div class="value">R$ 260 mi</div></article>
+          <article class="card metric"><div class="label">Alavancagem</div><div class="value">6,31%</div></article>
+          <article class="card metric"><div class="label">Passivos / ativos</div><div class="value">6,31%</div></article>
+          <article class="card metric"><div class="label">Histórico de rendimentos</div><div class="value">60 registros</div></article>
+          <article class="card metric"><div class="label">Quantidade de imóveis</div><div class="value">8 imóveis</div></article>
+          <article class="card metric"><div class="label">Área declarada dos imóveis</div><div class="value">148.000 m²</div></article>
+          <article class="card metric"><div class="label">Vacância consolidada</div><div class="value">4,20%</div></article>
+          <article class="card metric"><div class="label">Vacância por imóvel</div><div class="value">Dados parciais</div></article>
+          <article class="card metric"><div class="label">Inadimplência por imóvel</div><div class="value">Não informada</div></article>
+          <article class="card metric"><div class="label">Participação na receita</div><div class="value">Diversificada</div></article>
+        </div>
+        <div class="grid grid-3" style="margin-top:12px">
+          <article class="card note-card"><strong>Principais imóveis</strong><p class="property-description">Ed. Tower Bridge Corporate, Ed. Paulista, Ed. Nações Unidas e Torre III.</p></article>
+          <article class="card note-card">
+            <strong>Leitura operacional</strong>
+            <p>O campo de área foi tratado como área declarada, não como ABL.</p>
+            <p>Vacância física e financeira não foram separadas porque a base estruturada não retornou campos distintos.</p>
+          </article>
+          <article class="card note-card">
+            <strong>Aviso importante</strong>
+            <p>O FII Select organiza dados de mercado para fins educacionais. As informações apresentadas não representam recomendação de investimento.</p>
+          </article>
+        </div>
+        <div class="actions"><button class="button" type="button">Adicionar ticker atual</button></div>
+      </section>
+
+      <section>
+        <div class="section-head"><h2>Comparador de FIIs</h2><p>Monte uma tabela com até cinco fundos e teste a mesma taxa de risco ou premissas individuais.</p></div>
+        <div class="card compare-control">
+          <div><label>Taxa de risco compartilhada</label><div class="range-row"><input type="range" value="25" tabindex="-1" /><output>2,50%</output></div></div>
+          <button class="button" type="button">Aplicar a todos</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Nome do FII</th><th>Taxa de risco</th><th>Preço</th><th>P/VP</th><th>Valor justo</th><th>Ágio / deságio</th><th>Leitura</th><th></th></tr></thead>
+            <tbody>
+              <tr><td>MXRF11<small>Fundo de papel</small></td><td><span class="risk">2,50%</span></td><td>R$ 10,18</td><td>0,96x</td><td>R$ 10,84</td><td>−6,09%</td><td>Deságio</td><td><span class="badge remove">Remover</span></td></tr>
+              <tr><td>KNCR11<small>Recebíveis imobiliários</small></td><td><span class="risk">2,50%</span></td><td>R$ 103,20</td><td>1,02x</td><td>R$ 101,90</td><td>+1,28%</td><td>Ágio</td><td><span class="badge remove">Remover</span></td></tr>
+              <tr><td>HGLG11<small>Fundo de logística</small></td><td><span class="risk">2,50%</span></td><td>R$ 162,40</td><td>0,98x</td><td>R$ 168,70</td><td>−3,73%</td><td>Deságio</td><td><span class="badge remove">Remover</span></td></tr>
+              <tr><td>XPLG11<small>Fundo de logística</small></td><td><span class="risk">2,50%</span></td><td>R$ 101,60</td><td>0,94x</td><td>R$ 105,10</td><td>−3,33%</td><td>Deságio</td><td><span class="badge remove">Remover</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="actions"><button class="button" type="button">Atualizar tabela</button></div>
+      </section>
+
+      <section class="suggestions">
+        <div>
+          <h2>Sugestão Automática</h2>
+          <p><strong>FIIs parecidos com MXRF11</strong></p>
+          <p>A seleção considera fundos do mesmo tipo e segmento para facilitar a comparação.</p>
+        </div>
+        <div class="grid fund-list">
+          <article class="card fund-card"><strong>KNSC11</strong><button class="add" type="button">Adicionar</button><small>Papel • Recebíveis</small></article>
+          <article class="card fund-card"><strong>RBRR11</strong><button class="add" type="button">Adicionar</button><small>Papel • Recebíveis</small></article>
+          <article class="card fund-card"><strong>CVBI11</strong><button class="add" type="button">Adicionar</button><small>Papel • Recebíveis</small></article>
+          <article class="card fund-card"><strong>VGIR11</strong><button class="add" type="button">Adicionar</button><small>Papel • Recebíveis</small></article>
+          <article class="card fund-card"><strong>RECR11</strong><button class="add" type="button">Adicionar</button><small>Papel • Recebíveis</small></article>
+          <article class="card fund-card"><strong>KNIP11</strong><button class="add" type="button">Adicionar</button><small>Papel • Inflação</small></article>
+        </div>
+      </section>
+
+      <p class="prototype-note">Protótipo visual estático — dados fictícios, sem conexão com APIs ou funcionalidades do FII Select.</p>
+    </main>
+  </body>
+</html>
