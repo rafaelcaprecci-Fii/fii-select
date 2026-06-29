@@ -82,6 +82,9 @@ test("JSRE11 é normalizado como tijolo e limita os principais imóveis", () => 
   assert.equal(normalized.type, "tijolo");
   assert.equal(normalized.typeSpecific.mainProperties.length, 5);
   assert.equal(normalized.typeSpecific.mainProperties[0].name, "Imóvel 12");
+  assert.equal(normalized.typeSpecific.brick.topProperties.length, 5);
+  assert.equal(normalized.typeSpecific.brick.topProperties[0].name, "Imóvel 12");
+  assert.equal(normalized.typeSpecific.brick.vacancyStatus, "available");
   assert.equal(normalized.common.leverage, 0.25);
   assert.equal(normalized.common.liabilitiesToAssets, 0.2);
   assert.equal("cdi" in normalized.common, false);
@@ -101,7 +104,9 @@ test("HGLG11 é normalizado como tijolo com área declarada e vacância", () => 
   assert.equal(normalized.type, "tijolo");
   assert.equal(normalized.typeSpecific.propertyCount, 3);
   assert.equal(normalized.typeSpecific.declaredArea, 600);
+  assert.equal(normalized.typeSpecific.brick.declaredArea, 600);
   assert.equal(normalized.dataQuality.hasVacancyByProperty, true);
+  assert.equal(normalized.dataQuality.hasDeclaredArea, true);
   assert.match(normalized.cautions.join(" "), /área declarada/);
 });
 
@@ -112,12 +117,13 @@ test("XPML11 é normalizado como tijolo do segmento de shopping", () => {
     segmentoAtuacao: "Shoppings",
     properties: brickProperties(4),
   });
-  data.propertiesAndVacancy.vacancyRate = 0;
+  data.propertiesAndVacancy.vacancyRate = 0.7;
   const normalized = normalizeCrossedReading({ ticker: "XPML11", data });
 
   assert.equal(normalized.type, "tijolo");
   assert.equal(normalized.common.segment, "Shoppings");
   assert.equal(normalized.typeSpecific.vacancyConsistent, false);
+  assert.equal(normalized.typeSpecific.brick.vacancyStatus, "requires_validation");
   assert.ok(normalized.cautions.includes("Recomendamos avaliar o relatório gerencial do fundo."));
 });
 
@@ -144,5 +150,6 @@ test("KNCR11 é normalizado como papel sem dados de imóveis ou vacância", () =
   assert.equal("properties" in normalized.typeSpecific, false);
   assert.equal("declaredArea" in normalized.typeSpecific, false);
   assert.equal("consolidatedVacancy" in normalized.typeSpecific, false);
+  assert.equal("brick" in normalized.typeSpecific, false);
   assert.match(normalized.cautions.join(" "), /inadimplência de dívidas\/créditos/);
 });
