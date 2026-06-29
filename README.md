@@ -567,3 +567,121 @@ Continuam validados e não devem ser alterados:
 - Fluxo completo de acesso do usuário validado
 - Integração geral entre front-end e back-end validada
 - Estrutura atual da ferramenta funcionando corretamente
+
+## Checkpoint: Redesign visual da ferramenta — protótipo criado
+
+O protótipo visual da nova ferramenta foi criado em
+`prototypes/ferramenta-redesign.html`.
+
+- O protótipo serve apenas como referência visual.
+- O protótipo não está conectado à aplicação.
+- O protótipo não deve ser usado em produção.
+- A ferramenta real continua em `public/ferramenta.html` e `public/app.js`.
+- O redesign ainda não foi aplicado à ferramenta real.
+- A ferramenta atual continua intacta e funcional.
+- O redesign deverá ser aplicado em etapas, sem substituir o HTML inteiro.
+
+### Estado validado
+
+- Fluxo Plano Fundador funcionando
+- Fluxo Teste Grátis funcionando
+- E-mails Brevo completos e com links corretos
+- PagBank ativo
+- Conta inativa e arquivada funcionando
+- Sincronização e detalhes do cliente no Admin funcionando
+- `BRAPI_TOKEN` conectado
+- Ferramenta retornando dados reais de FIIs
+- Endpoint interno de manutenção BRAPI criado e validado
+- Leitura cruzada exibida corretamente
+- Segmentação visual no padrão “Tipo - Segmento”
+- Gestora não utilizada como segmentação principal
+- Mensagem institucional e educacional no rodapé da leitura cruzada
+
+### Ordem segura de aplicação
+
+1. Registrar o protótipo no Git.
+2. Extrair tokens visuais e CSS.
+3. Aplicar a aparência ao HTML atual preservando os IDs.
+4. Ajustar o HTML seção por seção.
+5. Adaptar templates dinâmicos somente se necessário.
+6. Validar busca, valuation, leitura cruzada, recorrência e comparáveis.
+7. Testar em desktop e mobile.
+
+### Contratos obrigatórios do JavaScript
+
+Os seguintes IDs devem ser preservados:
+
+- `valuation-form`
+- `risk-rate`
+- `risk-output`
+- `growth-rate`
+- `growth-output`
+- `recurrence-note`
+- `error`
+- `api-mode`
+- `fund-name`
+- `fair-value`
+- `reading`
+- `current-price`
+- `premium-discount`
+- `price-to-nav`
+- `patrimonial-reading`
+- `nav-per-share`
+- `selic`
+- `required-return`
+- `normalized-dividend`
+- `dividends-used`
+- `crossed-classification`
+- `crossed-reading-grid`
+- `crossed-type-specific`
+- `crossed-cautions`
+- `add-current`
+- `shared-risk-rate`
+- `shared-risk-output`
+- `apply-shared-risk`
+- `refresh-comparison`
+- `comparison-body`
+- `comparison-note`
+- `suggestion-origin`
+- `suggestion-note`
+- `suggestion-list`
+
+Também devem ser preservados:
+
+- inputs `name="ticker"`, `name="riskRate"` e `name="growthRate"`
+- classe `.row-risk`
+- atributos `data-ticker` e `data-remove`
+- submit normal do formulário
+- botões de adicionar e remover fundos
+- leitura automática da recorrência
+- padrão de classificação “Tipo - Segmento”
+- fonte Roboto Slab global
+
+### Riscos do redesign
+
+- Substituir o HTML integralmente pode quebrar busca, sliders e submit.
+- Transformar o ticker em texto pode impedir consultas.
+- Remover IDs pode quebrar chamadas de `querySelector`.
+- Alterar o corpo da tabela pode quebrar remoção e taxas individuais.
+- Sugestões estáticas podem perder o vínculo com `data-ticker`.
+- Cards fictícios não devem mascarar dados ausentes como dados reais.
+- O protótipo não deve substituir a lógica dinâmica existente.
+- O CSS inline do protótipo não deve substituir a regra global da fonte Roboto Slab.
+
+### Preservação
+
+A aplicação futura do redesign não deve alterar:
+
+- cálculo de valuation
+- leitura cruzada
+- FIIs parecidos
+- segmentação “Tipo - Segmento”
+- login
+- cadastro
+- Admin
+- e-mails
+- Brevo
+- PagBank
+- `BRAPI_TOKEN`
+- fluxo
+- endpoints existentes
