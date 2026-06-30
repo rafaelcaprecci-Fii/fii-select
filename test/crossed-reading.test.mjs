@@ -80,6 +80,7 @@ test("JSRE11 é normalizado como tijolo e limita os principais imóveis", () => 
   });
 
   assert.equal(normalized.type, "tijolo");
+  assert.equal("paper" in normalized.typeSpecific, false);
   assert.equal(normalized.typeSpecific.mainProperties.length, 5);
   assert.equal(normalized.typeSpecific.mainProperties[0].name, "Imóvel 12");
   assert.equal(normalized.typeSpecific.brick.topProperties.length, 5);
@@ -102,6 +103,7 @@ test("HGLG11 é normalizado como tijolo com área declarada e vacância", () => 
   });
 
   assert.equal(normalized.type, "tijolo");
+  assert.equal("paper" in normalized.typeSpecific, false);
   assert.equal(normalized.typeSpecific.propertyCount, 3);
   assert.equal(normalized.typeSpecific.declaredArea, 600);
   assert.equal(normalized.typeSpecific.brick.declaredArea, 600);
@@ -121,6 +123,7 @@ test("XPML11 é normalizado como tijolo do segmento de shopping", () => {
   const normalized = normalizeCrossedReading({ ticker: "XPML11", data });
 
   assert.equal(normalized.type, "tijolo");
+  assert.equal("paper" in normalized.typeSpecific, false);
   assert.equal(normalized.common.segment, "Shoppings");
   assert.equal(normalized.typeSpecific.vacancyConsistent, false);
   assert.equal(normalized.typeSpecific.brick.vacancyStatus, "requires_validation");
@@ -147,9 +150,54 @@ test("KNCR11 é normalizado como papel sem dados de imóveis ou vacância", () =
   assert.equal(normalized.type, "papel");
   assert.equal(normalized.typeSpecific.criCount, 2);
   assert.equal(normalized.typeSpecific.lciCount, 1);
+  assert.equal(normalized.typeSpecific.paper.criCount, 2);
+  assert.equal(normalized.typeSpecific.paper.criTotal, 500);
+  assert.equal(normalized.typeSpecific.paper.lciCount, 1);
+  assert.equal(normalized.typeSpecific.paper.lciTotal, 100);
+  assert.equal(normalized.typeSpecific.paper.governmentBondsTotal, 50);
+  assert.equal(normalized.typeSpecific.paper.fiiHoldingsTotal, 50);
+  assert.equal(normalized.typeSpecific.paper.totalCreditAssets, 600);
+  assert.equal(normalized.typeSpecific.paper.hasCreditAssets, true);
+  assert.equal(normalized.typeSpecific.paper.hasCreditDelinquency, false);
   assert.equal("properties" in normalized.typeSpecific, false);
   assert.equal("declaredArea" in normalized.typeSpecific, false);
   assert.equal("consolidatedVacancy" in normalized.typeSpecific, false);
   assert.equal("brick" in normalized.typeSpecific, false);
+  assert.equal(normalized.dataQuality.hasFinancialAssets, true);
+  assert.equal(normalized.dataQuality.hasCreditAssets, true);
+  assert.equal(normalized.dataQuality.hasCri, true);
+  assert.equal(normalized.dataQuality.hasLci, true);
+  assert.equal(normalized.dataQuality.hasGovernmentBonds, true);
+  assert.equal(normalized.dataQuality.hasFiiHoldings, true);
+  assert.equal(normalized.dataQuality.hasCreditDelinquency, false);
+  assert.equal(normalized.dataQuality.needsManagerReport, true);
   assert.match(normalized.cautions.join(" "), /inadimplência de dívidas\/créditos/);
+});
+
+test("fundo de papel preserva totais agregados sem inventar contagens", () => {
+  const data = baseData({
+    ticker: "PAPR11",
+    segmentType: "papel",
+    segmentoAtuacao: "Recebíveis Imobiliários",
+  });
+  data.portfolio.financialAssets = [];
+  data.report.cri = 900;
+  data.report.lci = 120;
+  data.report.governmentBonds = 80;
+  data.report.fiiHoldings = 40;
+  data.report.creditDelinquencyRate = 0.015;
+
+  const normalized = normalizeCrossedReading({ ticker: "PAPR11", data });
+
+  assert.equal(normalized.typeSpecific.paper.criCount, null);
+  assert.equal(normalized.typeSpecific.paper.lciCount, null);
+  assert.equal(normalized.typeSpecific.paper.criTotal, 900);
+  assert.equal(normalized.typeSpecific.paper.lciTotal, 120);
+  assert.equal(normalized.typeSpecific.paper.totalCreditAssets, 1_020);
+  assert.match(normalized.typeSpecific.paper.notes.join(" "), /quantidade de CRIs/);
+  assert.match(normalized.typeSpecific.paper.notes.join(" "), /quantidade de LCIs/);
+  assert.equal(normalized.typeSpecific.paper.creditDelinquencyRate, 0.015);
+  assert.equal(normalized.typeSpecific.paper.hasCreditDelinquency, true);
+  assert.equal(normalized.dataQuality.hasCreditDelinquency, true);
+  assert.equal("brick" in normalized.typeSpecific, false);
 });
