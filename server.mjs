@@ -4,6 +4,10 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { extname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
 import { normalizeCrossedReading } from "./lib/crossed-reading.mjs";
+import {
+  normalizeFundClassification,
+  selectComparableFunds,
+} from "./lib/fund-comparables.mjs";
 
 const root = fileURLToPath(new URL(".", import.meta.url));
 const publicDir = join(root, "public");
@@ -1379,27 +1383,26 @@ function suggestions(url) {
   const selected = fiiCatalog.find((item) => item.ticker === ticker);
   const segmentType = selected?.segmentType || url.searchParams.get("segmentType") || "";
   const segmentoAtuacao = selected?.segmentoAtuacao || url.searchParams.get("segmentoAtuacao") || "";
-  const normalizeSegment = (value) =>
-    value.normalize("NFD").replaceAll(/[\u0300-\u036f]/g, "").trim().toLowerCase();
-  const sameType = fiiCatalog.filter(
-    (item) => item.ticker !== ticker && item.segmentType === segmentType,
+  const origin = {
+    ...(selected || {}),
+    ticker,
+    segmentType,
+    segmentoAtuacao,
+  };
+  const { precision, matches: comparableMatches } = selectComparableFunds(
+    origin,
+    fiiCatalog,
+    5,
   );
-  const exactMatches = segmentoAtuacao
-    ? sameType.filter(
-      (item) => normalizeSegment(item.segmentoAtuacao) === normalizeSegment(segmentoAtuacao),
-    )
-    : [];
-  const candidates = exactMatches.length ? exactMatches : sameType;
-  const precision = exactMatches.length ? "segmento" : sameType.length ? "tipo" : "indisponivel";
-  const matches = candidates
-    .slice(0, 5)
+  const originClassification = normalizeFundClassification(origin);
+  const matches = comparableMatches
     .map((item) => ({
       ...item,
       availableNow: Boolean(brapiToken || item.sandbox),
       reason:
         precision === "segmento"
-          ? `Mesmo tipo e segmento: ${segmentType} / ${segmentoAtuacao}`
-          : `Mesmo tipo de fundo: ${segmentType}`,
+          ? `Mesmo tipo e segmento: ${originClassification.label}`
+          : `Mesmo tipo de fundo: ${originClassification.type}`,
     }));
 
   return {
