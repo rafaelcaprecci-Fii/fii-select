@@ -1,3 +1,5 @@
+import { normalizeFundClassification } from "./fund-classification.js";
+
 const form = document.querySelector("#valuation-form");
 const button = form.querySelector("button");
 const error = document.querySelector("#error");
@@ -42,50 +44,8 @@ function escapeHtml(value) {
     .replaceAll('"', "&quot;");
 }
 
-function normalizedText(value) {
-  return String(value || "")
-    .normalize("NFD")
-    .replaceAll(/[\u0300-\u036f]/g, "")
-    .trim()
-    .toLowerCase();
-}
-
-function formatFundType(value) {
-  const type = normalizedText(value);
-  if (type === "fof") return "FOF";
-  if (type === "tijolo") return "Tijolo";
-  if (type === "papel") return "Papel";
-  if (type === "hibrido") return "Híbrido";
-  if (type === "fiagro") return "Fiagro";
-  return value ? String(value) : "";
-}
-
-function formatFundSegment(value) {
-  const segment = normalizedText(value);
-  if (!segment) return "";
-  if (segment === "shoppings" || segment === "shopping") return "Shopping";
-  if (segment === "logistica") return "Logística";
-  if (segment.includes("lajes corporativas") || segment.includes("escritorio")) {
-    return "Laje corporativa";
-  }
-  if (
-    segment.includes("titulo") ||
-    segment.includes("valor mobiliario") ||
-    segment.includes("multicategoria")
-  ) {
-    return "Multicategoria";
-  }
-  return String(value);
-}
-
 function formatFundClassification(fund) {
-  const rawType = fund.segmentType || fund.fundType || fund.type;
-  const normalizedType = normalizedText(rawType);
-  const type = formatFundType(rawType);
-  const segment = ["papel", "fof", "hibrido"].includes(normalizedType)
-    ? "Multicategoria"
-    : formatFundSegment(fund.segmentoAtuacao || fund.segment);
-  return [type, segment].filter(Boolean).join(" - ");
+  return normalizeFundClassification(fund).label;
 }
 
 function optionalMoney(value) {
@@ -108,6 +68,7 @@ function renderCrossedReading(result, fallbackFund = {}) {
   const specific = result.typeSpecific || {};
   const hasNormalizedType = result.type && result.type !== "desconhecido";
   const classification = formatFundClassification({
+    classification: common.classification,
     fundType: hasNormalizedType ? result.type : fallbackFund.segmentType,
     segment: common.segment || fallbackFund.segmentoAtuacao,
   });
@@ -386,6 +347,7 @@ async function submit(event) {
       ticker: result.ticker,
       segmentType: result.fund.segmentType,
       segmentoAtuacao: result.fund.segmentoAtuacao,
+      classification: result.fund.classification,
     });
   } catch {
     error.textContent =

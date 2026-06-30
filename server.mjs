@@ -1274,7 +1274,16 @@ async function crossedReading(ticker) {
       includeQuote: false,
       includeCdi: false,
     });
-    return diagnostic.normalizedCrossedReading;
+    const result = diagnostic.normalizedCrossedReading;
+    result.common.classification = normalizeFundClassification(
+      {
+        ticker,
+        fundType: result.type,
+        segment: result.common.segment,
+      },
+      fiiCatalog,
+    );
+    return result;
   });
 }
 
@@ -1347,6 +1356,14 @@ async function valuation(url) {
       priceToNav: round(priceToNav, 4),
       patrimonialReading,
       dataAsOfDate: indicators.asOfDate,
+      classification: normalizeFundClassification(
+        {
+          ticker,
+          segmentType: indicators.segmentType,
+          segmentoAtuacao: indicators.segmentoAtuacao,
+        },
+        fiiCatalog,
+      ),
     },
     assumptions: {
       selicRate,
@@ -1398,6 +1415,7 @@ function suggestions(url) {
   const matches = comparableMatches
     .map((item) => ({
       ...item,
+      classification: normalizeFundClassification(item, fiiCatalog),
       availableNow: Boolean(brapiToken || item.sandbox),
       reason:
         precision === "segmento"

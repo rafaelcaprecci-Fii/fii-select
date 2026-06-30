@@ -35,6 +35,47 @@ test("classificação preserva o padrão Tipo - Segmento", () => {
   });
 });
 
+test("segmento específico do catálogo prevalece sobre Multicategoria", () => {
+  const brcrCatalog = [
+    {
+      ticker: "BRCR11",
+      segmentType: "tijolo",
+      segmentoAtuacao: "Lajes Corporativas",
+    },
+  ];
+  const classification = normalizeFundClassification(
+    {
+      ticker: "BRCR11",
+      segmentType: "tijolo",
+      segmentoAtuacao: "Multicategoria",
+    },
+    brcrCatalog,
+  );
+
+  assert.deepEqual(classification, {
+    type: "tijolo",
+    segment: "laje corporativa",
+    label: "Tijolo - Laje corporativa",
+  });
+});
+
+test("classificação resolvida é reutilizada sem alternar o segmento", () => {
+  const classification = {
+    type: "tijolo",
+    segment: "laje corporativa",
+    label: "Tijolo - Laje corporativa",
+  };
+
+  assert.deepEqual(
+    normalizeFundClassification({
+      ticker: "BRCR11",
+      classification,
+      segmentoAtuacao: "Multicategoria",
+    }),
+    classification,
+  );
+});
+
 test("HGLG11 recebe somente comparáveis de tijolo e logística", () => {
   const matches = suggestionsFor("HGLG11");
   assert.deepEqual(matches.map((fund) => fund.ticker), ["BRCO11", "BTLG11", "XPLG11"]);
