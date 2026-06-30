@@ -273,8 +273,9 @@ async function loadSuggestions(fund = { ticker: currentTicker() }) {
         `,
       )
       .join("");
-  } catch (cause) {
-    suggestionList.innerHTML = `<p class="locked">${escapeHtml(cause.message)}</p>`;
+  } catch {
+    suggestionList.innerHTML =
+      '<p class="locked">Não foi possível carregar os fundos comparáveis no momento.</p>';
   }
 }
 
@@ -309,7 +310,7 @@ async function refreshComparison() {
             <tr>
               <td><strong>${escapeHtml(row.ticker)}</strong></td>
               <td><input class="row-risk" data-ticker="${escapeHtml(row.ticker)}" type="number" min="0" max="30" step="0.25" value="${escapeHtml((row.riskRate * 100).toFixed(2))}" />%</td>
-              <td colspan="5"><span class="locked">${escapeHtml(row.requiresToken ? "Token Pro necessário para carregar indicadores detalhados." : row.error)}</span></td>
+              <td colspan="5"><span class="locked">${escapeHtml(row.requiresToken ? "Dados detalhados indisponíveis para este fundo no momento." : "Não foi possível consultar os dados deste fundo no momento.")}</span></td>
               <td><button class="remove" type="button" data-remove="${escapeHtml(row.ticker)}">Remover</button></td>
             </tr>
           `;
@@ -331,10 +332,11 @@ async function refreshComparison() {
       .join("");
     document.querySelector("#comparison-note").textContent =
       result.source === "sandbox"
-        ? "Sandbox ativo: MXRF11 e HGLG11 possuem análise completa. Os demais FIIs ficam prontos para uso quando o token Pro for configurado."
-        : "Tabela atualizada com dados detalhados da API.";
-  } catch (cause) {
-    document.querySelector("#comparison-note").textContent = cause.message;
+        ? "Alguns fundos podem ter dados detalhados indisponíveis na base estruturada."
+        : "Tabela atualizada com dados de mercado estruturados.";
+  } catch {
+    document.querySelector("#comparison-note").textContent =
+      "Não foi possível atualizar a comparação no momento. Tente novamente em instantes.";
   }
 }
 
@@ -342,9 +344,9 @@ async function loadHealth() {
   try {
     const response = await fetch("/api/health");
     const data = await response.json();
-    setText("#api-mode", data.mode === "sandbox" ? "API • SANDBOX" : "API • TOKEN ATIVO");
+    setText("#api-mode", data.mode === "sandbox" ? "DADOS • LIMITADOS" : "DADOS • ATUALIZADOS");
   } catch {
-    setText("#api-mode", "API • OFFLINE");
+    setText("#api-mode", "DADOS • INDISPONÍVEIS");
   }
 }
 
@@ -385,8 +387,9 @@ async function submit(event) {
       segmentType: result.fund.segmentType,
       segmentoAtuacao: result.fund.segmentoAtuacao,
     });
-  } catch (cause) {
-    error.textContent = cause.message || "Não foi possível atualizar a estimativa.";
+  } catch {
+    error.textContent =
+      "Não foi possível atualizar a estimativa no momento. Tente novamente em instantes.";
   } finally {
     button.disabled = false;
     button.textContent = "Atualizar estimativa";
