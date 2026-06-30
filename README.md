@@ -685,3 +685,98 @@ A aplicação futura do redesign não deve alterar:
 - `BRAPI_TOKEN`
 - fluxo
 - endpoints existentes
+
+## Checkpoint: ferramenta estabilizada — visual, adapters e linguagem
+
+**Data:** 2026-06-30
+
+Foi concluída uma rodada de evolução da ferramenta do FII Select envolvendo camada visual, normalização por tipo de fundo, comparáveis e revisão da linguagem educacional.
+
+### 1. Redesign visual aplicado de forma segura
+
+- A camada visual do redesign foi aplicada principalmente em `public/styles.css`.
+- O HTML, o JavaScript público, o `server.mjs` e a lógica da ferramenta foram preservados durante essa aplicação.
+- A responsividade foi validada em desktop, largura intermediária e mobile.
+- Problemas de rolagem horizontal foram corrigidos.
+- Busca, valuation, leitura cruzada, comparáveis, sliders e adição/remoção de fundos continuaram funcionando.
+- O protótipo visual permanece como referência em `prototypes/ferramenta-redesign.html`.
+
+### 2. Adapter para fundos de tijolo
+
+- O `brickFundAdapter` foi consolidado em `lib/brapi-fund-adapters.mjs`.
+- A estrutura `typeSpecific.brick` passou a incluir imóveis, área declarada, vacância validada, principais imóveis, indicadores de disponibilidade e cautelas.
+- JSRE11, HGLG11 e XPML11 foram validados como fundos de tijolo.
+- XPML11 mantém cautela quando a vacância exige validação.
+- KNCR11 não recebe bloco de tijolo.
+
+### 3. Adapter para fundos de papel
+
+- O `paperFundAdapter` foi implementado sem alterar interface ou fluxos.
+- A estrutura `typeSpecific.paper` passou a incluir CRIs, LCIs, títulos públicos, cotas de FIIs, inadimplência de crédito quando disponível e flags de qualidade.
+- KNCR11 recebe apenas bloco de papel.
+- JSRE11, HGLG11 e XPML11 mantêm apenas bloco de tijolo.
+
+### 4. Padronização da classificação dos FIIs
+
+- A classificação foi consolidada em `public/fund-classification.js`.
+- Tabela, comparáveis, sugestões e leitura cruzada passaram a usar a mesma normalização.
+- A gestora não participa da classificação visual.
+- O padrão visual consolidado é **“Tipo - Segmento”**.
+- Exemplo validado: BRCR11 → **“Tijolo - Laje corporativa”**.
+- Foi eliminada a inconsistência em que um ticker poderia aparecer como “Tijolo - Multicategoria” em uma área e “Tijolo - Laje corporativa” em outra.
+
+### 5. Comparáveis por tipo e segmento
+
+- A lógica de FIIs comparáveis foi ajustada para priorizar fundos do mesmo tipo e segmento.
+- A comparação não utiliza a gestora como critério principal.
+- A ferramenta evita misturar fundos de papel com fundos de tijolo quando há dados suficientes.
+- É preferível exibir menos comparáveis coerentes do que muitos comparáveis incompatíveis.
+
+### 6. Revisão dos textos finais da ferramenta
+
+- Foram revisados os textos de premissas, crescimento esperado dos rendimentos, recorrência dos dividendos, ágio/deságio, comparáveis, erros e avisos.
+- Não foram encontrados textos visíveis com “BRAPI”.
+- Não foi encontrada linguagem de recomendação de investimento.
+- A mensagem institucional está presente:
+
+> O FII Select organiza dados de mercado para fins educacionais. As informações apresentadas não representam recomendação de investimento.
+
+### Testes e validações
+
+- Os testes automatizados passaram ao final da rodada.
+- Houve validação específica com 13 testes na etapa de classificação e textos.
+- Busca, valuation, leitura cruzada, comparáveis, sliders e adição/remoção de fundos estão funcionando.
+- Login, cadastro, Admin, e-mails, Brevo, PagBank e `BRAPI_TOKEN` não foram alterados nesta rodada.
+
+### Arquivos relevantes da rodada
+
+- `public/styles.css`
+- `lib/brapi-fund-adapters.mjs`
+- `lib/crossed-reading.mjs`
+- `test/crossed-reading.test.mjs`
+- `public/fund-classification.js`
+- `public/app.js`
+- `lib/fund-comparables.mjs`
+- `server.mjs`
+- `test/fund-comparables.test.mjs`
+- `prototypes/ferramenta-redesign.html`
+
+### Regras preservadas
+
+- O FII Select é uma ferramenta educacional e não realiza recomendação de investimento.
+- Não usar gestora como segmentação principal.
+- Usar classificação visual no padrão “Tipo - Segmento”.
+- Não mencionar “BRAPI” em textos visíveis ao usuário.
+- Usar “dados de mercado estruturados”, “base estruturada” ou “dados de uma API de mercado confiável”.
+- Não chamar área de ABL sem confirmação explícita.
+- Para dados conflitantes ou incompletos, recomendar a avaliação do relatório gerencial.
+- Não misturar fundos de papel e tijolo em comparáveis quando houver dados suficientes.
+
+### Pendências após este checkpoint
+
+- Ajustes finos de diagramação visual observados pelo usuário, sem prioridade imediata.
+- Evoluir o tratamento de FOFs.
+- Evoluir o tratamento de Fiagros.
+- Refinar a validação de dados conflitantes por segmento.
+- Criar rotina operacional de acompanhamento pós-lançamento.
+- Avançar domínio, favicon, vídeo da home e go-to-market.
