@@ -5729,6 +5729,38 @@ body.admin-dashboard-v2 .customer-wide-metric b {
   line-height: 1;
 }
 
+body.admin-dashboard-v2 .api-card {
+  gap: 22px;
+  padding: 18px 24px;
+}
+
+body.admin-dashboard-v2 .api-usage-totals {
+  min-width: 180px;
+  text-align: right;
+}
+
+body.admin-dashboard-v2 .api-usage-totals p {
+  margin: 0 0 3px;
+  color: #293149;
+  font-size: 14px;
+  line-height: 1.2;
+}
+
+body.admin-dashboard-v2 .customer-wide-metric .api-usage-totals b {
+  color: inherit;
+  font-size: 18px;
+  font-weight: 800;
+  line-height: inherit;
+}
+
+body.admin-dashboard-v2 .api-usage-totals small {
+  display: block;
+  margin-top: 6px;
+  color: #6d7485;
+  font-size: 11px;
+  line-height: 1.2;
+}
+
 body.admin-dashboard-v2 .customer-controls {
   display: flex;
   gap: 12px;

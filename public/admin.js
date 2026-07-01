@@ -258,6 +258,27 @@ async function loadUsers() {
   renderUsers();
 }
 
+async function loadBrapiUsage() {
+  updateText("[data-brapi-total]", 0);
+  updateText("[data-brapi-errors]", 0);
+
+  try {
+    const response = await fetch("/admin/api/maintenance/brapi-usage");
+    if (!response.ok) return;
+    const result = await response.json();
+    updateText(
+      "[data-brapi-total]",
+      Number.isFinite(Number(result.totalRequests)) ? Number(result.totalRequests) : 0,
+    );
+    updateText(
+      "[data-brapi-errors]",
+      Number.isFinite(Number(result.errors)) ? Number(result.errors) : 0,
+    );
+  } catch {
+    // O card permanece com zero quando as métricas internas não estão disponíveis.
+  }
+}
+
 async function updateStatus(status) {
   if (!selectedUserId) return showAdminMessage("Selecione um usuário.", true);
   const response = await fetch(`/admin/api/users/${encodeURIComponent(selectedUserId)}/status`, {
@@ -354,3 +375,4 @@ actionsModal?.querySelector(".status-whatsapp")?.addEventListener("click", (even
 
 updateAdminCurrentDate();
 loadUsers().catch((error) => showAdminMessage(error.message, true));
+loadBrapiUsage();
