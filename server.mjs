@@ -1617,6 +1617,35 @@ const server = http.createServer(async (req, res) => {
         return json(res, result.configured ? 200 : 503, result);
       }
 
+      if (url.pathname === "/admin/api/maintenance") {
+        if (req.method !== "GET") {
+          return json(res, 405, { ok: false, error: "Método não permitido." });
+        }
+        return json(res, 200, {
+          ok: true,
+          service: "FII Select Maintenance",
+          environment:
+            process.env.RAILWAY_ENVIRONMENT_NAME || process.env.NODE_ENV || "development",
+          timestamp: new Date().toISOString(),
+          endpoints: {
+            brapiDiagnostic: {
+              method: "GET",
+              path: "/admin/api/maintenance/brapi-fii-diagnostic?ticker=JSRE11",
+              description: "Diagnóstico interno de dados estruturados de FIIs",
+            },
+            brapiUsage: {
+              method: "GET",
+              path: "/admin/api/maintenance/brapi-usage",
+              description: "Contagem interna de requisições da BRAPI",
+            },
+          },
+          notes: [
+            "Endpoint protegido por autenticação interna.",
+            "Não expõe tokens, dados pessoais ou informações sensíveis.",
+          ],
+        });
+      }
+
       if (url.pathname === "/admin/api/maintenance/brapi-fii-diagnostic") {
         if (req.method !== "GET") {
           return json(res, 405, { ok: false, error: "Método não permitido." });
