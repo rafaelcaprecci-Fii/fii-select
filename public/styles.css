@@ -597,7 +597,7 @@ body.auth-page .notice {
   aspect-ratio: 16 / 9;
   margin: 0 auto;
   overflow: hidden;
-  border-radius: 8px;
+  border-radius: 24px;
 }
 
 .home-page .home-video-wrapper iframe {
@@ -605,6 +605,18 @@ body.auth-page .notice {
   width: 100%;
   height: 100%;
   border: 0;
+}
+
+.home-page .home-video-fallback {
+  margin: 14px auto 0;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.home-page .home-video-fallback a {
+  color: #c79718;
+  font-weight: 700;
 }
 
 .home-page .home-founder-copy {
