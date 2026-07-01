@@ -780,3 +780,155 @@ Foi concluída uma rodada de evolução da ferramenta do FII Select envolvendo c
 - Refinar a validação de dados conflitantes por segmento.
 - Criar rotina operacional de acompanhamento pós-lançamento.
 - Avançar domínio, favicon, vídeo da home e go-to-market.
+
+## Checkpoint: preparação final do MVP — favicon, manutenção, teste grátis, cautelas e vídeo
+
+**Data:** 2026-07-01
+
+Foi concluída uma rodada de preparação final do MVP do FII Select envolvendo favicon e manifesto, monitoramento interno da BRAPI, páginas específicas do Teste Grátis, lógica cautelosa para híbridos, FOFs e Fiagros e vídeo de apresentação na home.
+
+### 1. Favicon e manifesto
+
+- O favicon e o manifesto foram corrigidos e validados.
+- O manifesto final ficou como `site.webmanifest`.
+- Foi criada uma ligação em `public/site.webmanifest` para disponibilização estática sem alterar `server.mjs`.
+- As páginas públicas usam `/site.webmanifest`.
+- Os ícones 192x192 e 512x512 foram validados.
+- Nenhuma lógica, CSS ou JavaScript foi alterado nessa etapa.
+
+### 2. Contagem de requisições BRAPI
+
+- Foi criada a contagem interna de requisições à BRAPI.
+- Endpoint protegido: `GET /admin/api/maintenance/brapi-usage`.
+- Métricas disponíveis:
+  - total de chamadas
+  - rota interna
+  - rota BRAPI
+  - ticker
+  - erros
+  - últimas 50 chamadas
+- Apenas chamadas externas reais são contabilizadas; respostas do cache não incrementam o contador.
+- Segurança validada:
+  - sem autenticação retorna `401`
+  - com Basic Auth retorna `200`
+  - `BRAPI_TOKEN` não aparece
+  - nenhum dado pessoal é registrado
+- Cálculos, adapters, comparáveis, classificação e fluxos não foram alterados.
+- Quinze testes foram aprovados nessa etapa.
+
+### 3. Páginas do Teste Grátis
+
+- As páginas já existiam e foram preservadas como base validada.
+- Foram ajustadas:
+  - `public/cadastro-teste.html`
+  - `public/login-teste.html`
+- Ajustes realizados:
+  - textos específicos do Teste Grátis
+  - links internos entre cadastro e login do teste
+  - aviso educacional
+  - favicon e manifesto preservados
+- O CTA da home já apontava para `cadastro-teste.html`.
+- A origem `trial` já era identificada por `cadastro.js`.
+- Acessos:
+  - `/cadastro-teste.html`
+  - `/login-teste.html`
+- Plano Fundador, scripts, servidor, Admin, Brevo, PagBank, BRAPI e ferramenta não foram alterados.
+- `/area-cliente.html` não foi usado.
+- Quinze testes foram aprovados nessa etapa.
+
+### 4. Lógica cautelosa para Híbrido, FOF e Fiagro
+
+- A lógica conservadora foi consolidada em:
+  - `lib/crossed-reading.mjs`
+  - `test/crossed-reading.test.mjs`
+- Híbrido:
+  - usa os blocos `brick`, `paper` e `fof` somente quando há evidência estruturada
+  - não inventa dados ausentes
+- FOF:
+  - apresenta posições confiáveis quando disponíveis
+  - não inventa concentração
+  - sempre inclui cautela
+- Fiagro:
+  - usa apenas dados comuns e cautela
+  - exige endpoint dedicado no futuro
+  - não recebe adapters de FII automaticamente
+- Adapters de tijolo e papel, valuation, comparáveis, classificação, servidor e front-end não foram alterados.
+- Vinte testes foram aprovados nessa etapa.
+
+### 5. Vídeo da home
+
+- O vídeo de apresentação foi inserido na seção “Como funciona?” da home.
+- Foi aplicado o iframe oficial do YouTube.
+- O vídeo usa wrapper responsivo.
+- Desktop e mobile usam o mesmo vídeo.
+- O player mantém proporção 16:9 e não causa rolagem horizontal.
+- Foi adicionado fallback discreto para assistir diretamente no YouTube.
+- A implementação não alterou lógica, fluxos ou integrações.
+
+### Regras preservadas nesta rodada
+
+- O FII Select continua sendo uma ferramenta educacional.
+- A ferramenta não realiza recomendações de investimento.
+- Não mencionar “BRAPI” em textos visíveis ao usuário.
+- `BRAPI_TOKEN` nunca deve aparecer em HTML, JSON público, logs ou frontend.
+- Não registrar dados pessoais em métricas técnicas.
+- Não usar `/area-cliente.html`.
+- Não misturar Fiagro automaticamente no fluxo de FII.
+- FOF e Fiagro devem manter cautela no MVP.
+- Híbrido deve ser tratado por blocos condicionais, sem inferência indevida.
+- Desktop e mobile devem usar o mesmo vídeo da home.
+
+### Arquivos relevantes da rodada
+
+- `site.webmanifest`
+- `public/site.webmanifest`
+- `public/favicon_16x16.ico`
+- `public/favicon_32x32.ico`
+- `public/favicon_48x48.ico`
+- `public/apple-touch-icon.png`
+- `public/android-chrome-192x192.png`
+- `public/android-chrome-512x512.png`
+- `lib/brapi-usage.mjs`
+- `server.mjs`
+- `test/brapi-usage.test.mjs`
+- `public/cadastro-teste.html`
+- `public/login-teste.html`
+- `lib/crossed-reading.mjs`
+- `test/crossed-reading.test.mjs`
+- `public/index.html`
+- `public/styles.css`
+
+### Status funcional validado
+
+- Cadastro funcionando.
+- Login funcionando.
+- Plano Fundador preservado.
+- Teste Grátis preservado.
+- Admin preservado.
+- Brevo preservado.
+- PagBank preservado.
+- BRAPI preservada.
+- Valuation preservado.
+- Leitura cruzada preservada.
+- Comparáveis preservados.
+- Classificação dos FIIs preservada.
+- Favicon e manifesto funcionando.
+- Vídeo da home funcionando.
+- Endpoint de uso BRAPI protegido.
+- Repositório mais próximo do MVP público.
+
+### Pendências após este checkpoint
+
+- Apontar domínios:
+  - `app.fiiselect.com.br` → Railway
+  - `fiiselect.com.br` → site/home
+  - `fiiselect.com` → redirecionar para `fiiselect.com.br`
+- Corrigir o botão “Acessar ferramenta” forçando login, se ainda estiver pendente.
+- Preparar a regra dos 100 fundadores.
+- Criar acesso de avaliador somente leitura no Admin.
+- Preparar rotina operacional pós go-market.
+- Criar comunidade WhatsApp do Plano Fundador.
+- Melhorar a visualização do endpoint de manutenção em uma tela legível no Admin.
+- Fazer ajustes finos de diagramação visual, sem prioridade imediata.
+- Tratar CDI em etapa futura.
+- Tratar relatórios gerenciais em etapa futura, sem scraping direto no MVP.
