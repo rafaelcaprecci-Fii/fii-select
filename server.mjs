@@ -114,6 +114,7 @@ function securityHeaders() {
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "img-src 'self' data:",
       "font-src 'self' https://fonts.gstatic.com",
+      "frame-src https://www.youtube.com https://www.youtube-nocookie.com",
       "connect-src 'self'",
       "form-action 'self'",
       "base-uri 'self'",
