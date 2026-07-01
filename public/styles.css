@@ -3676,16 +3676,6 @@ body.status-approved-page .status-copy {
   width: min(760px, calc(100% - 48px));
 }
 
-body.status-approved-page .status-inline-link {
-  display: inline-block;
-  margin-top: 18px;
-  color: #171757;
-  font-size: 15px;
-  font-weight: 800;
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-
 body.status-approved-page .center-actions {
   display: grid;
   justify-items: center;
@@ -3698,6 +3688,38 @@ body.status-approved-page .center-actions .cta {
   min-width: 340px;
 }
 
+body.status-approved-page .status-community {
+  width: min(620px, calc(100% - 48px));
+  margin: 28px auto 0;
+  text-align: center;
+}
+
+body.status-approved-page .status-community p {
+  margin: 0 auto 14px;
+  color: #4f5668;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+body.status-approved-page .status-community-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  border: 1px solid #c79718;
+  border-radius: 8px;
+  padding: 0 24px;
+  color: #171757;
+  background: transparent;
+  font-size: 14px;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+body.status-approved-page .status-community-cta:hover {
+  background: #fff8e7;
+}
+
 @media (max-width: 800px) {
   body.status-approved-page .status-photo {
     content: url("ASSETS/Internas-Bem-vindo-mobile.png");
@@ -3706,6 +3728,10 @@ body.status-approved-page .center-actions .cta {
   body.status-approved-page .center-actions .cta {
     width: min(340px, 100%);
     min-width: 0;
+  }
+
+  body.status-approved-page .status-community-cta {
+    width: min(300px, 100%);
   }
 }
 
