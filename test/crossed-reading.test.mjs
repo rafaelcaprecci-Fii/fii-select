@@ -201,3 +201,117 @@ test("fundo de papel preserva totais agregados sem inventar contagens", () => {
   assert.equal(normalized.dataQuality.hasCreditDelinquency, true);
   assert.equal("brick" in normalized.typeSpecific, false);
 });
+
+test("fundo híbrido usa apenas blocos sustentados por evidência estruturada", () => {
+  const normalized = normalizeCrossedReading({
+    ticker: "HYBR11",
+    data: baseData({
+      ticker: "HYBR11",
+      segmentType: "híbrido",
+      segmentoAtuacao: "Multicategoria",
+      properties: brickProperties(2),
+      financialAssets: [
+        { assetClass: "cri", name: "CRI Híbrido", value: 250 },
+      ],
+      allocations: [
+        { assetClass: "real_estate", value: 500 },
+        { assetClass: "cri", value: 250 },
+      ],
+    }),
+  });
+
+  assert.equal(normalized.type, "híbrido");
+  assert.equal(normalized.typeSpecific.hybrid.hasBrickBlock, true);
+  assert.equal(normalized.typeSpecific.hybrid.hasPaperBlock, true);
+  assert.equal(normalized.typeSpecific.hybrid.hasFofBlock, false);
+  assert.deepEqual(normalized.typeSpecific.hybrid.compositionBlocks, ["brick", "paper"]);
+  assert.equal(normalized.typeSpecific.hybrid.hasAmbiguousComposition, false);
+  assert.equal(normalized.dataQuality.hasHybridComposition, true);
+  assert.equal(normalized.dataQuality.hasAmbiguousComposition, false);
+});
+
+test("fundo híbrido não inventa blocos quando a composição está ausente", () => {
+  const normalized = normalizeCrossedReading({
+    ticker: "HYB211",
+    data: baseData({
+      ticker: "HYB211",
+      segmentType: "híbrido",
+      segmentoAtuacao: "Multicategoria",
+    }),
+  });
+
+  assert.equal(normalized.type, "híbrido");
+  assert.deepEqual(normalized.typeSpecific.hybrid.compositionBlocks, []);
+  assert.equal(normalized.typeSpecific.hybrid.hasBrickBlock, false);
+  assert.equal(normalized.typeSpecific.hybrid.hasPaperBlock, false);
+  assert.equal(normalized.typeSpecific.hybrid.hasFofBlock, false);
+  assert.equal(normalized.dataQuality.hasAmbiguousComposition, true);
+  assert.match(normalized.cautions.join(" "), /composição híbrida/);
+});
+
+test("FOF expõe somente posições com métrica confiável e mantém cautela", () => {
+  const normalized = normalizeCrossedReading({
+    ticker: "FOFX11",
+    data: baseData({
+      ticker: "FOFX11",
+      segmentType: "fof",
+      segmentoAtuacao: "Multicategoria",
+      fundHoldings: [
+        { ticker: "HGLG11", percentage: 0.2 },
+        { ticker: "KNCR11", value: 100 },
+        { ticker: "SEMVAL11" },
+      ],
+    }),
+  });
+
+  assert.equal(normalized.type, "fof");
+  assert.equal(normalized.typeSpecific.fof.fundHoldingsCount, 3);
+  assert.equal(normalized.typeSpecific.fof.topHoldings.length, 2);
+  assert.equal(normalized.typeSpecific.fof.hasConcentrationData, true);
+  assert.equal(normalized.typeSpecific.fof.hasFundHoldings, true);
+  assert.equal("brick" in normalized.typeSpecific, false);
+  assert.equal("paper" in normalized.typeSpecific, false);
+  assert.equal(normalized.dataQuality.hasFundHoldingsConcentration, true);
+  assert.match(normalized.cautions.join(" "), /característica de FOF/);
+});
+
+test("FOF não inventa concentração quando posições não têm valor ou percentual", () => {
+  const normalized = normalizeCrossedReading({
+    ticker: "FOFY11",
+    data: baseData({
+      ticker: "FOFY11",
+      segmentType: "fof",
+      segmentoAtuacao: "Multicategoria",
+      fundHoldings: [{ ticker: "HGLG11" }, { ticker: "KNCR11" }],
+    }),
+  });
+
+  assert.equal(normalized.typeSpecific.fof.hasConcentrationData, false);
+  assert.deepEqual(normalized.typeSpecific.fof.topHoldings, []);
+  assert.equal(normalized.dataQuality.hasFundHoldingsConcentration, false);
+});
+
+test("Fiagro exige endpoint dedicado e não recebe adapters de FII", () => {
+  const normalized = normalizeCrossedReading({
+    ticker: "KNCA11",
+    data: baseData({
+      ticker: "KNCA11",
+      segmentType: "fiagro",
+      segmentoAtuacao: "Agronegócio",
+      financialAssets: [
+        { assetClass: "cra", name: "Ativo não normalizado", value: 300 },
+      ],
+    }),
+  });
+
+  assert.equal(normalized.type, "fiagro");
+  assert.equal(normalized.typeSpecific.fiagro.supportedInMvp, false);
+  assert.equal(normalized.typeSpecific.fiagro.requiresDedicatedEndpoint, true);
+  assert.equal("brick" in normalized.typeSpecific, false);
+  assert.equal("paper" in normalized.typeSpecific, false);
+  assert.equal(normalized.dataQuality.hasFiagroSpecificData, false);
+  assert.equal(normalized.dataQuality.requiresDedicatedFiagroEndpoint, true);
+  assert.match(normalized.cautions.join(" "), /característica de Fiagro/);
+  assert.equal(JSON.stringify(normalized).includes("garantias"), true);
+  assert.equal("cra" in normalized.typeSpecific.fiagro, false);
+});
