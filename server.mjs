@@ -4,6 +4,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { extname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
 import { normalizeCrossedReading } from "./lib/crossed-reading.mjs";
+import { createBrapiUsageTracker } from "./lib/brapi-usage.mjs";
 import {
   normalizeFundClassification,
   selectComparableFunds,
@@ -57,6 +58,7 @@ const eventLabel = {
 const sandboxTickers = new Set(["MXRF11", "HGLG11"]);
 const brapiTestTickers = ["MXRF11", "HGLG11", "KNCR11", "XPML11", "VISC11"];
 const cache = new Map();
+const brapiUsage = createBrapiUsageTracker({ lastRequestsLimit: 50 });
 const clientSessions = new Map();
 const rateLimits = new Map();
 let usersQueue = Promise.resolve();
@@ -839,9 +841,34 @@ async function cached(key, ttlMs, loader) {
   return value;
 }
 
-async function upstream(url) {
-  const headers = brapiToken ? { Authorization: `Bearer ${brapiToken}` } : {};
-  const response = await fetch(url, { headers });
+async function trackedBrapiFetch(url, { internalEndpoint, ticker } = {}) {
+  const brapiRoute = new URL(url).pathname;
+  try {
+    const response = await fetch(url, {
+      headers: brapiToken ? { Authorization: `Bearer ${brapiToken}` } : {},
+    });
+    brapiUsage.record({
+      internalEndpoint,
+      brapiRoute,
+      ticker,
+      status: response.status,
+      success: response.ok,
+    });
+    return response;
+  } catch (error) {
+    brapiUsage.record({
+      internalEndpoint,
+      brapiRoute,
+      ticker,
+      status: null,
+      success: false,
+    });
+    throw error;
+  }
+}
+
+async function upstream(url, metadata = {}) {
+  const response = await trackedBrapiFetch(url, metadata);
   if (!response.ok) {
     const message = await response.text();
     const error = new Error(publicDataError());
@@ -862,7 +889,7 @@ async function getSelic() {
   });
 }
 
-async function getFiiData(ticker) {
+async function getFiiData(ticker, internalEndpoint = "/api/valuation") {
   if (!brapiToken && !sandboxTickers.has(ticker)) {
     throw new Error(
       "Modo demonstracao: use MXRF11 ou HGLG11. Para consultar outros fundos, configure BRAPI_TOKEN.",
@@ -871,8 +898,14 @@ async function getFiiData(ticker) {
 
   return cached(`fii:${ticker}`, 15 * 60 * 1000, async () => {
     const [indicatorsPayload, dividendsPayload] = await Promise.all([
-      upstream(`https://brapi.dev/api/v2/fii/indicators?symbols=${encodeURIComponent(ticker)}`),
-      upstream(`https://brapi.dev/api/v2/fii/dividends?symbols=${encodeURIComponent(ticker)}&sortOrder=desc`),
+      upstream(
+        `https://brapi.dev/api/v2/fii/indicators?symbols=${encodeURIComponent(ticker)}`,
+        { internalEndpoint, ticker },
+      ),
+      upstream(
+        `https://brapi.dev/api/v2/fii/dividends?symbols=${encodeURIComponent(ticker)}&sortOrder=desc`,
+        { internalEndpoint, ticker },
+      ),
     ]);
 
     const indicators = indicatorsPayload.fiis?.[0];
@@ -906,6 +939,7 @@ async function testBrapiIndicators() {
       try {
         const payload = await upstream(
           `https://brapi.dev/api/v2/fii/indicators?symbols=${encodeURIComponent(ticker)}`,
+          { internalEndpoint: "/admin/api/brapi-test", ticker },
         );
         const indicator = payload.fiis?.find((item) => item.symbol === ticker) || payload.fiis?.[0];
         if (!indicator) throw new Error("FII não encontrado na resposta da BRAPI.");
@@ -949,7 +983,10 @@ function availableFields(source) {
   return source && typeof source === "object" ? Object.keys(source).sort() : [];
 }
 
-async function diagnosticBrapiRequest(path) {
+async function diagnosticBrapiRequest(
+  path,
+  { internalEndpoint = "/admin/api/maintenance/brapi-fii-diagnostic", ticker } = {},
+) {
   if (!brapiToken) {
     return {
       ok: false,
@@ -960,8 +997,9 @@ async function diagnosticBrapiRequest(path) {
   }
 
   try {
-    const response = await fetch(`https://brapi.dev${path}`, {
-      headers: { Authorization: `Bearer ${brapiToken}` },
+    const response = await trackedBrapiFetch(`https://brapi.dev${path}`, {
+      internalEndpoint,
+      ticker,
     });
     if (!response.ok) {
       return {
@@ -984,7 +1022,11 @@ async function diagnosticBrapiRequest(path) {
 
 async function brapiFiiDiagnostic(
   ticker,
-  { includeQuote = true, includeCdi = true } = {},
+  {
+    includeQuote = true,
+    includeCdi = true,
+    internalEndpoint = "/admin/api/maintenance/brapi-fii-diagnostic",
+  } = {},
 ) {
   const endpointPaths = {
     indicators: `/api/v2/fii/indicators?symbols=${encodeURIComponent(ticker)}`,
@@ -998,7 +1040,7 @@ async function brapiFiiDiagnostic(
   const entries = await Promise.all(
     Object.entries(endpointPaths).map(async ([name, path]) => [
       name,
-      await diagnosticBrapiRequest(path),
+      await diagnosticBrapiRequest(path, { internalEndpoint, ticker }),
     ]),
   );
   const responses = Object.fromEntries(entries);
@@ -1273,6 +1315,7 @@ async function crossedReading(ticker) {
     const diagnostic = await brapiFiiDiagnostic(ticker, {
       includeQuote: false,
       includeCdi: false,
+      internalEndpoint: "/api/crossed-reading",
     });
     const result = diagnostic.normalizedCrossedReading;
     result.common.classification = normalizeFundClassification(
@@ -1287,7 +1330,7 @@ async function crossedReading(ticker) {
   });
 }
 
-async function valuation(url) {
+async function valuation(url, internalEndpoint = "/api/valuation") {
   const ticker = (url.searchParams.get("ticker") || "MXRF11").trim().toUpperCase();
   if (!/^[A-Z]{4}[0-9]{2}$/.test(ticker)) {
     throw new Error("Informe um ticker de FII no formato MXRF11.");
@@ -1297,7 +1340,7 @@ async function valuation(url) {
   const growthRate = numberParam(url, "growthRate", 0.03, -0.1, 0.15);
   const recurrence = numberParam(url, "recurrence", 0.95, 0.5, 1);
   const [{ annualRate: selicRate, asOfDate: selicAsOfDate }, { indicators, dividends }] =
-    await Promise.all([getSelic(), getFiiData(ticker)]);
+    await Promise.all([getSelic(), getFiiData(ticker, internalEndpoint)]);
 
   const requiredReturn = selicRate + riskRate;
   if (requiredReturn <= growthRate) {
@@ -1469,7 +1512,7 @@ async function comparison(url) {
       innerUrl.searchParams.set("growthRate", String(growthRate));
       innerUrl.searchParams.set("recurrence", String(recurrence));
       try {
-        return { ok: true, ...(await valuation(innerUrl)) };
+        return { ok: true, ...(await valuation(innerUrl, "/api/comparison")) };
       } catch (error) {
         if (error.internalMessage) logInternalError(`BRAPI comparação ${ticker}`, { message: error.internalMessage });
         return {
@@ -1589,6 +1632,13 @@ const server = http.createServer(async (req, res) => {
         }
         const result = await brapiFiiDiagnostic(ticker);
         return json(res, result.status.brapiTokenConfigured ? 200 : 503, result);
+      }
+
+      if (url.pathname === "/admin/api/maintenance/brapi-usage") {
+        if (req.method !== "GET") {
+          return json(res, 405, { ok: false, error: "Método não permitido." });
+        }
+        return json(res, 200, { ok: true, ...brapiUsage.snapshot() });
       }
 
       const statusMatch = url.pathname.match(/^\/admin\/api\/users\/([^/]+)\/status$/);
