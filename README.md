@@ -932,3 +932,164 @@ Foi concluída uma rodada de preparação final do MVP do FII Select envolvendo 
 - Fazer ajustes finos de diagramação visual, sem prioridade imediata.
 - Tratar CDI em etapa futura.
 - Tratar relatórios gerenciais em etapa futura, sem scraping direto no MVP.
+
+## Rotina operacional pós-go-market
+
+Esta rotina orienta o acompanhamento manual do MVP após o lançamento. O Admin deve ser tratado como fonte operacional para consulta de usuários, status, histórico e indicadores internos. Nenhuma ação financeira deve ser presumida como automática.
+
+### Status existentes
+
+Usar os status atuais, sem criar novos:
+
+- `pending`: cadastro geral pendente
+- `pending_founder`: Plano Fundador aguardando acompanhamento ou liberação
+- `pending_trial`: Teste Grátis aguardando liberação
+- `awaiting_payment` e `payment_pending`: pagamento em acompanhamento manual
+- `active`: Plano Fundador com acesso liberado
+- `trial_active`: Teste Grátis ativo
+- `trial_finished`: Teste Grátis encerrado
+- `inactive`: acesso inativado, com dados e histórico preservados
+- `archived`: conta arquivada, sem exclusão do usuário
+- `rejected`: cadastro recusado
+
+O valor legado `approved` é tratado pelo sistema como `active`.
+
+Não existe uma etapa automática de cancelamento financeiro. Enquanto não houver integração confiável com o PagBank, cancelamento financeiro e inativação de acesso devem ser tratados como processos distintos.
+
+### Observações internas e histórico
+
+O cadastro possui o campo `internalNotes`, exibido nos detalhes do cliente no Admin. Usá-lo para contexto operacional objetivo quando estiver disponível, sem incluir dados desnecessários ou sensíveis.
+
+As alterações de status e os eventos operacionais existentes devem preservar o histórico. Nunca apagar usuário, histórico ou observações para representar inativação, arquivamento ou cancelamento.
+
+Uma interface dedicada para editar observações de usuários existentes pode ser avaliada futuramente. Não criar essa funcionalidade durante a operação manual inicial sem diagnóstico específico.
+
+### A. Pedido de inativação
+
+1. Localizar o cliente no Admin e confirmar a solicitação.
+2. Conferir o status atual, o plano e o histórico.
+3. Usar a ação existente para alterar o status para `inactive`.
+4. Registrar contexto em observação interna, quando o campo estiver disponível.
+5. Preservar cadastro, dados e histórico.
+6. Se houver cobrança recorrente ou pendência financeira, orientar e conferir o cancelamento manualmente fora do sistema.
+
+Inativação bloqueia o acesso, mas não confirma cancelamento financeiro no PagBank.
+
+### B. Arquivamento
+
+1. Usar `archived` para contas que não devem permanecer entre as contas ativas.
+2. Preservar usuário, histórico e eventos operacionais.
+3. Não excluir o cadastro.
+4. Confirmar que a conta deixou de participar da contagem de fundadores aprovados/ativos, quando aplicável.
+
+### C. Cancelamento
+
+1. Diferenciar cancelamento financeiro de inativação de acesso.
+2. Verificar manualmente o PagBank enquanto não houver conciliação automática validada.
+3. Registrar o contexto no Admin ou histórico disponível.
+4. Usar `inactive` para bloquear o acesso quando essa for a decisão operacional confirmada.
+5. Não criar cobrança, webhook, e-mail ou alteração automática de status.
+
+Não há ação administrativa dedicada para um novo status de cancelamento nesta etapa. Não criar status apenas para representar uma etapa financeira manual.
+
+### D. Reativação
+
+1. Localizar o usuário existente pelo e-mail.
+2. Conferir plano, status, histórico, motivo da inativação ou arquivamento e situação financeira.
+3. Não criar novo cadastro para um usuário já existente.
+4. Reativar conforme as ações e status já disponíveis no fluxo atual.
+5. Para Plano Fundador, conferir “Fundadores aprovados: X / 100” antes da liberação.
+6. Se houver pendência financeira, validar manualmente no PagBank antes de concluir a ação operacional.
+
+### E. Acompanhamento manual
+
+- Revisar novos cadastros e pendências.
+- Revisar usuários do Teste Grátis e datas de término.
+- Revisar contas inativas e arquivadas.
+- Revisar solicitações de reativação registradas.
+- Acompanhar fundadores aprovados, ativos e arquivados/inativos.
+- Acompanhar a contagem de requisições BRAPI no endpoint protegido.
+- Usar o Admin como fonte operacional, sem alterar dados por inferência.
+- Conferir o PagBank manualmente antes de considerar um pagamento confirmado.
+
+### Checklist semanal pós-go-market
+
+- [ ] Revisar novos cadastros pendentes.
+- [ ] Revisar usuários em Teste Grátis.
+- [ ] Revisar testes próximos do fim.
+- [ ] Revisar clientes inativos.
+- [ ] Revisar contas arquivadas.
+- [ ] Revisar pedidos de reativação.
+- [ ] Revisar fundadores aprovados X / 100.
+- [ ] Revisar a contagem de requisições BRAPI.
+- [ ] Revisar eventuais erros reportados por usuários.
+- [ ] Verificar manualmente pendências no PagBank.
+
+### Prompts operacionais para Codex
+
+**Revisar usuários inativos**
+
+> Liste usuários inativos e arquivados, sem alterar dados, para revisão operacional.
+
+**Preparar reativação**
+
+> Verifique o status do usuário [e-mail] e informe quais ações manuais são necessárias para reativação. Não altere nada sem confirmação.
+
+**Revisar fundadores**
+
+> Verifique a contagem de fundadores aprovados, ativos e arquivados/inativos. Não altere dados.
+
+**Revisar Teste Grátis**
+
+> Liste usuários do Teste Grátis e destaque quem está próximo do fim do período. Não altere dados.
+
+**Revisar PagBank manualmente**
+
+> Liste os pontos que preciso conferir manualmente no PagBank hoje. Não altere dados, não crie cobrança e não envie e-mails.
+
+### E-mail diário interno de operação
+
+Possibilidade futura, não implementada neste checkpoint.
+
+O objetivo seria enviar um resumo diário apenas ao administrador contendo:
+
+- cadastros pendentes
+- usuários em Teste Grátis
+- testes próximos do fim
+- testes encerrados
+- fundadores aprovados X / 100
+- contas inativas
+- contas arquivadas
+- requisições BRAPI do dia
+- erros BRAPI do dia
+- lembrete para verificar o PagBank manualmente
+
+Variáveis futuras sugeridas:
+
+- `{{report_date}}`
+- `{{pending_approvals_count}}`
+- `{{trial_active_count}}`
+- `{{trial_expiring_count}}`
+- `{{trial_ended_count}}`
+- `{{founders_approved_count}}`
+- `{{founders_limit}}`
+- `{{inactive_count}}`
+- `{{archived_count}}`
+- `{{brapi_requests_today}}`
+- `{{brapi_errors_today}}`
+- `{{pagbank_check_note}}`
+
+Enquanto não houver integração automática confiável com o PagBank, o resumo deve apresentar apenas:
+
+> PagBank: verificar manualmente pagamentos pendentes no painel.
+
+O e-mail não deve afirmar que pagamentos foram confirmados automaticamente.
+
+### Pendências operacionais futuras
+
+- Avaliar automação do acompanhamento do Teste Grátis.
+- Pesquisar a viabilidade de automação de pagamento, cancelamento e conciliação via PagBank.
+- Avaliar webhooks ou API oficial do PagBank antes de qualquer automação financeira.
+- Avaliar um e-mail diário interno via Brevo para resumo operacional.
+- Não implementar automações financeiras sem validação técnica, jurídica e operacional.
+- Manter a operação manual no MVP até o fluxo estar validado.

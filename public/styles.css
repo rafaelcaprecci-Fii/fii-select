@@ -5850,6 +5850,46 @@ body.admin-dashboard-v2 .customer-kpis article > strong {
   line-height: 1;
 }
 
+body.admin-dashboard-v2 .founder-capacity {
+  display: flex;
+  gap: 24px;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 22px;
+  border: 1px solid #d9dde6;
+  border-left: 4px solid #c79718;
+  border-radius: 8px;
+  padding: 18px 24px;
+  color: #293149;
+  background: #fff;
+}
+
+body.admin-dashboard-v2 .founder-capacity strong {
+  font-size: 20px;
+}
+
+body.admin-dashboard-v2 .founder-capacity p {
+  margin: 5px 0 0;
+  font-size: 14px;
+}
+
+body.admin-dashboard-v2 .founder-capacity p span {
+  margin-right: 6px;
+}
+
+body.admin-dashboard-v2 .founder-capacity-warning {
+  max-width: 480px;
+  color: #9f2d2d;
+  font-weight: 700;
+  text-align: right;
+}
+
+body.admin-dashboard-v2 .founder-capacity.is-limit-reached {
+  border-color: #efb8b8;
+  border-left-color: #c43c3c;
+  background: #fff7f7;
+}
+
 body.admin-dashboard-v2 .customer-list-card {
   overflow: hidden;
   border: 1px solid #dde0e7;

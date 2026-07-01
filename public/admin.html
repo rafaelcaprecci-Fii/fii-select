@@ -150,6 +150,22 @@
           </article>
         </section>
 
+        <section class="founder-capacity" aria-label="Controle operacional do Plano Fundador">
+          <div>
+            <strong>Fundadores aprovados: <span data-founder-approved>0</span> / 100</strong>
+            <p>
+              Cadastros: <span data-founder-total>0</span>
+              <span aria-hidden="true">•</span>
+              Ativos: <span data-founder-active>0</span>
+              <span aria-hidden="true">•</span>
+              Arquivados/inativos: <span data-founder-inactive>0</span>
+            </p>
+          </div>
+          <p class="founder-capacity-warning" data-founder-limit-warning hidden>
+            Limite de 100 fundadores atingido. Revisar novas aprovações manualmente.
+          </p>
+        </section>
+
         <section class="customer-list-card">
           <div class="customer-list-head">
             <h2>Lista de clientes</h2>
@@ -324,6 +340,6 @@
         <a class="actions-close" href="admin.html">Fechar</a>
       </div>
     </section>
-    <script src="admin.js"></script>
+    <script src="admin.js" type="module"></script>
   </body>
 </html>

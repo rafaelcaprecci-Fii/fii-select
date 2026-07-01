@@ -1,3 +1,5 @@
+import { calculateFounderMetrics } from "./founder-metrics.js";
+
 const tableBody = document.querySelector(".customer-table tbody");
 const manualForm = document.querySelector(".manual-form");
 const actionsModal = document.querySelector("#acoes-cliente");
@@ -68,6 +70,20 @@ function isTrialUser(user) {
     ["pending_trial", "trial_active", "trial_finished"].includes(user?.status) ||
     planText(user?.plan) === "Teste"
   );
+}
+
+function renderFounderCapacity() {
+  const metrics = calculateFounderMetrics(users);
+  updateText("[data-founder-total]", metrics.total);
+  updateText("[data-founder-approved]", metrics.approved);
+  updateText("[data-founder-active]", metrics.active);
+  updateText("[data-founder-inactive]", metrics.inactiveOrArchived);
+
+  const capacity = document.querySelector(".founder-capacity");
+  const warning = document.querySelector("[data-founder-limit-warning]");
+  const limitReached = metrics.approved >= 100;
+  capacity?.classList.toggle("is-limit-reached", limitReached);
+  if (warning) warning.hidden = !limitReached;
 }
 
 function intentText(intent) {
@@ -187,6 +203,7 @@ function renderKpis() {
   }).format(payingActive * 49));
   updateText(".trial-card b", trialActive);
   updateText("[data-users-count]", `${total} ${total === 1 ? "usuário cadastrado" : "usuários cadastrados"}`);
+  renderFounderCapacity();
 }
 
 function showAdminMessage(message, isError = false) {
