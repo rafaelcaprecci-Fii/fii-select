@@ -10,6 +10,16 @@ node server.mjs
 
 Abra `http://localhost:4173`.
 
+### URL oficial da aplicação
+
+Configure no Railway:
+
+```bash
+APP_BASE_URL=https://app.fiiselect.com.br
+```
+
+Essa variável é usada para montar links absolutos enviados por e-mail. Enquanto não estiver configurada, o sistema mantém temporariamente o domínio Railway de estabilização como fallback.
+
 Sem token, o sandbox aceita `MXRF11` e `HGLG11`. Para ampliar a cobertura:
 
 ```bash

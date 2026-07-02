@@ -5,6 +5,7 @@ import { extname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
 import { normalizeCrossedReading } from "./lib/crossed-reading.mjs";
 import { createBrapiUsageTracker } from "./lib/brapi-usage.mjs";
+import { buildAppUrl } from "./lib/app-urls.mjs";
 import {
   normalizeFundClassification,
   selectComparableFunds,
@@ -32,7 +33,6 @@ const protectedAdminRoutes = new Set([
   "/admin/testar-email",
 ]);
 const protectedAdminApiPrefix = "/admin/api/";
-const stabilizationBaseUrl = "https://fii-select-fii-select-stabilization.up.railway.app";
 const platformContactUrl =
   "https://wa.me/5511971780101?text=Ol%C3%A1.%20Quero%20reativar%20meu%20acesso%20ao%20FII%20Select.";
 const templateEnvByEvent = {
@@ -317,9 +317,9 @@ function brevoTemplateParams(user) {
   return {
     NOME: name,
     EMAIL: email,
-    LINK_LOGIN: `${stabilizationBaseUrl}/login.html`,
+    LINK_LOGIN: buildAppUrl("/login.html"),
     LINK_ACESSO: "",
-    LINK_PLANOS: nonEmptyString(user.linkPlanos, `${stabilizationBaseUrl}/assinar.html`),
+    LINK_PLANOS: nonEmptyString(user.linkPlanos, buildAppUrl("/assinar.html")),
     LINK_REATIVACAO: nonEmptyString(user.linkReativacao, platformContactUrl),
     DATA_INICIO_TESTE: formatBrazilDate(user.trialStartAt || user.trialStartedAt),
     DATA_FIM_TESTE: formatBrazilDate(user.trialEndAt || user.trialEndsAt),
@@ -335,16 +335,16 @@ function brevoTemplatePayload({ user, event, origin, emailFrom }) {
   if (["cadastroRecebidoTeste", "cadastroRecebidoFundador"].includes(event)) {
     delete params.LINK_ACESSO;
   } else if (event === "acessoLiberadoTeste") {
-    params.LINK_ACESSO = `${stabilizationBaseUrl}/status-teste-ativo.html`;
+    params.LINK_ACESSO = buildAppUrl("/status-teste-ativo.html");
     delete params.LINK_LOGIN;
   } else if (event === "acessoLiberadoFundador") {
-    params.LINK_ACESSO = `${stabilizationBaseUrl}/status-aprovado.html`;
+    params.LINK_ACESSO = buildAppUrl("/status-aprovado.html");
     delete params.LINK_LOGIN;
   } else if (event === "contaInativada") {
-    params.LINK_ACESSO = `${stabilizationBaseUrl}/conta-inativa.html`;
+    params.LINK_ACESSO = buildAppUrl("/conta-inativa.html");
     delete params.LINK_LOGIN;
   } else if (event === "contaArquivada") {
-    params.LINK_ACESSO = `${stabilizationBaseUrl}/conta-arquivada.html`;
+    params.LINK_ACESSO = buildAppUrl("/conta-arquivada.html");
     delete params.LINK_LOGIN;
   } else {
     delete params.LINK_LOGIN;
