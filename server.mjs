@@ -9,7 +9,9 @@ import { buildAppUrl } from "./lib/app-urls.mjs";
 import {
   accountTypeForPublicRegistration,
   canAccountAccessTool,
+  findUniqueUserByEmail,
   isInternalAccount,
+  normalizeAdministrativeAccountType,
   shouldRunCommercialAutomation,
 } from "./lib/user-account-policy.mjs";
 import {
@@ -799,11 +801,25 @@ async function markUserAsInternal(id) {
     const user = users.find((item) => item.id === id);
     if (!user) throw new Error("Usuario nao encontrado.");
 
-    user.accountType = "internal";
-    user.updatedAt = new Date().toISOString();
-    user.history = user.history || [];
-    user.history.unshift(`${formatBrazilDateTime(user.updatedAt)} - Conta marcada como interna`);
-    return { user: publicUser(user) };
+    return markInternalAccount(user);
+  });
+}
+
+function markInternalAccount(user) {
+  user.accountType = "internal";
+  user.updatedAt = new Date().toISOString();
+  user.history = user.history || [];
+  user.history.unshift(`${formatBrazilDateTime(user.updatedAt)} - Conta marcada como interna`);
+  return { user: publicUser(user) };
+}
+
+async function markUserAsInternalByEmail(email) {
+  return withUsers(async (users) => {
+    const match = findUniqueUserByEmail(users, email);
+    if (!match.ok) return match;
+
+    const result = markInternalAccount(match.user);
+    return { ok: true, ...result };
   });
 }
 
@@ -1709,11 +1725,22 @@ const server = http.createServer(async (req, res) => {
       if (accountTypeMatch && req.method === "PATCH") {
         if (!checkRateLimit(req, res, "admin-account-type", 20, 10 * 60 * 1000)) return;
         const body = await readJsonBody(req);
-        if (String(body.accountType || "").trim().toLowerCase() !== "internal") {
+        if (!normalizeAdministrativeAccountType(body.accountType)) {
           return json(res, 400, { ok: false, error: "Tipo de conta inválido." });
         }
         const result = await markUserAsInternal(decodeURIComponent(accountTypeMatch[1]));
         return json(res, 200, { ok: true, ...result });
+      }
+
+      if (url.pathname === "/admin/api/users/account-type-by-email" && req.method === "PATCH") {
+        if (!checkRateLimit(req, res, "admin-account-type", 20, 10 * 60 * 1000)) return;
+        const body = await readJsonBody(req);
+        if (!normalizeAdministrativeAccountType(body.accountType)) {
+          return json(res, 400, { ok: false, error: "Tipo de conta inválido." });
+        }
+        const result = await markUserAsInternalByEmail(body.email);
+        if (!result.ok) return json(res, result.status, result);
+        return json(res, 200, result);
       }
 
       const resendMatch = url.pathname.match(/^\/admin\/api\/users\/([^/]+)\/resend-email$/);
