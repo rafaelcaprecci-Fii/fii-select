@@ -1,4 +1,9 @@
-function isTrialUser(user) {
+export function isInternalAccount(user) {
+  return String(user?.accountType || "").trim().toLowerCase() === "internal";
+}
+
+export function isTrialUser(user) {
+  if (isInternalAccount(user)) return false;
   const plan = String(user?.plan || "").trim().toLowerCase();
   return (
     user?.intent === "trial" ||
@@ -8,6 +13,7 @@ function isTrialUser(user) {
 }
 
 export function isFounderUser(user) {
+  if (isInternalAccount(user)) return false;
   const plan = String(user?.plan || "").trim().toLowerCase();
   return !isTrialUser(user) && (user?.intent === "founder" || plan.includes("fundador"));
 }

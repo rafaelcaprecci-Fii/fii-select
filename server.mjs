@@ -7,6 +7,12 @@ import { normalizeCrossedReading } from "./lib/crossed-reading.mjs";
 import { createBrapiUsageTracker } from "./lib/brapi-usage.mjs";
 import { buildAppUrl } from "./lib/app-urls.mjs";
 import {
+  accountTypeForPublicRegistration,
+  canAccountAccessTool,
+  isInternalAccount,
+  shouldRunCommercialAutomation,
+} from "./lib/user-account-policy.mjs";
+import {
   normalizeFundClassification,
   selectComparableFunds,
 } from "./lib/fund-comparables.mjs";
@@ -459,6 +465,7 @@ function publicUser(user) {
     name: user.name,
     email: user.email,
     phone: user.phone,
+    accountType: user.accountType || "customer",
     intent: user.intent || "general",
     plan: user.plan,
     status: user.status,
@@ -527,6 +534,7 @@ function createUser(input) {
     name: input.name,
     email: input.email,
     phone: input.phone,
+    accountType: accountTypeForPublicRegistration(),
     intent,
     plan: cleanText(plan, 40),
     status,
@@ -599,10 +607,12 @@ function normalizeStatus(status) {
 }
 
 function canAccessTool(user) {
-  return Boolean(user && ["active", "trial_active"].includes(normalizeStatus(user.status)));
+  return canAccountAccessTool(user, normalizeStatus(user?.status));
 }
 
 function clientFlowPath(user) {
+  if (isInternalAccount(user)) return "/status-aprovado.html";
+
   const status = normalizeStatus(user?.status);
   const paymentStatus = user?.paymentStatus ? normalizeStatus(user.paymentStatus) : "";
 
@@ -707,10 +717,10 @@ async function changeUserStatus(id, status, origin, options = {}) {
       recordOperationalEvent(user, options.operationalAction, previousStatus, nextStatus, user.updatedAt);
     }
 
-    if (nextStatus === "active") {
+    if (nextStatus === "active" && shouldRunCommercialAutomation(user)) {
       user.plan = "fundador";
     }
-    if (nextStatus === "trial_active") {
+    if (nextStatus === "trial_active" && shouldRunCommercialAutomation(user)) {
       user.plan = "teste_7_dias";
       applyTrialDates(user);
       user.updatedAt = new Date().toISOString();
@@ -720,8 +730,10 @@ async function changeUserStatus(id, status, origin, options = {}) {
     }
 
     const emailResults = [];
-    for (const event of statusTemplateEvents(nextStatus)) {
-      emailResults.push(await sendAndRecord(user, event, origin));
+    if (shouldRunCommercialAutomation(user)) {
+      for (const event of statusTemplateEvents(nextStatus)) {
+        emailResults.push(await sendAndRecord(user, event, origin));
+      }
     }
 
     return { user: publicUser(user), emailResults };
@@ -774,10 +786,24 @@ async function findUserForLogin(email) {
     return {
       id: user.id,
       name: user.name,
+      accountType: user.accountType || "customer",
       intent: user.intent || "general",
       status: normalizeStatus(user.status),
       paymentStatus: user.paymentStatus || "",
     };
+  });
+}
+
+async function markUserAsInternal(id) {
+  return withUsers(async (users) => {
+    const user = users.find((item) => item.id === id);
+    if (!user) throw new Error("Usuario nao encontrado.");
+
+    user.accountType = "internal";
+    user.updatedAt = new Date().toISOString();
+    user.history = user.history || [];
+    user.history.unshift(`${formatBrazilDateTime(user.updatedAt)} - Conta marcada como interna`);
+    return { user: publicUser(user) };
   });
 }
 
@@ -1676,6 +1702,17 @@ const server = http.createServer(async (req, res) => {
         if (!checkRateLimit(req, res, "admin-status", 60, 10 * 60 * 1000)) return;
         const body = await readJsonBody(req);
         const result = await changeUserStatus(decodeURIComponent(statusMatch[1]), body.status, origin);
+        return json(res, 200, { ok: true, ...result });
+      }
+
+      const accountTypeMatch = url.pathname.match(/^\/admin\/api\/users\/([^/]+)\/account-type$/);
+      if (accountTypeMatch && req.method === "PATCH") {
+        if (!checkRateLimit(req, res, "admin-account-type", 20, 10 * 60 * 1000)) return;
+        const body = await readJsonBody(req);
+        if (String(body.accountType || "").trim().toLowerCase() !== "internal") {
+          return json(res, 400, { ok: false, error: "Tipo de conta inválido." });
+        }
+        const result = await markUserAsInternal(decodeURIComponent(accountTypeMatch[1]));
         return json(res, 200, { ok: true, ...result });
       }
 

@@ -3,6 +3,8 @@ import test from "node:test";
 import {
   calculateFounderMetrics,
   isFounderUser,
+  isInternalAccount,
+  isTrialUser,
 } from "../public/founder-metrics.js";
 
 test("conta apenas usuários explicitamente identificados como fundadores", () => {
@@ -46,4 +48,23 @@ test("status de teste nunca é contado como fundador", () => {
     }),
     false,
   );
+});
+
+test("conta interna nunca entra nas métricas de fundador ou trial", () => {
+  const internal = {
+    accountType: "internal",
+    intent: "founder",
+    plan: "fundador",
+    status: "trial_active",
+  };
+
+  assert.equal(isInternalAccount(internal), true);
+  assert.equal(isFounderUser(internal), false);
+  assert.equal(isTrialUser(internal), false);
+  assert.deepEqual(calculateFounderMetrics([internal]), {
+    total: 0,
+    approved: 0,
+    active: 0,
+    inactiveOrArchived: 0,
+  });
 });

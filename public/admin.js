@@ -1,4 +1,7 @@
-import { calculateFounderMetrics } from "./founder-metrics.js";
+import {
+  calculateFounderMetrics,
+  isInternalAccount,
+} from "./founder-metrics.js";
 
 const tableBody = document.querySelector(".customer-table tbody");
 const manualForm = document.querySelector(".manual-form");
@@ -182,14 +185,15 @@ function renderUserDetails(user) {
 }
 
 function renderKpis() {
-  const total = users.length;
-  const active = users.filter((user) => ["active", "approved", "trial_active"].includes(user.status)).length;
-  const pending = users.filter((user) => ["pending", "pending_trial", "pending_founder"].includes(user.status)).length;
-  const inactive = users.filter(
+  const commercialUsers = users.filter((user) => !isInternalAccount(user));
+  const total = commercialUsers.length;
+  const active = commercialUsers.filter((user) => ["active", "approved", "trial_active"].includes(user.status)).length;
+  const pending = commercialUsers.filter((user) => ["pending", "pending_trial", "pending_founder"].includes(user.status)).length;
+  const inactive = commercialUsers.filter(
     (user) => ["inactive", "archived", "rejected", "trial_finished"].includes(user.status),
   ).length;
-  const trialActive = users.filter((user) => user.status === "trial_active").length;
-  const payingActive = users.filter(
+  const trialActive = commercialUsers.filter((user) => user.status === "trial_active").length;
+  const payingActive = commercialUsers.filter(
     (user) => ["active", "approved"].includes(user.status) && planText(user.plan) !== "Teste",
   ).length;
 
