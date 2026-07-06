@@ -1103,3 +1103,210 @@ O e-mail não deve afirmar que pagamentos foram confirmados automaticamente.
 - Avaliar um e-mail diário interno via Brevo para resumo operacional.
 - Não implementar automações financeiras sem validação técnica, jurídica e operacional.
 - Manter a operação manual no MVP até o fluxo estar validado.
+
+## Checkpoint de Segurança — Produção
+
+Data: 06/07/2026
+
+### Estado do projeto
+
+- Aplicação pública em produção.
+- Home pública:
+  - `https://fiiselect.com.br`
+  - hospedada na HostGator.
+- Aplicação:
+  - `https://app.fiiselect.com.br`
+  - hospedada no Railway.
+- Branch de estabilização:
+  - `codex/stabilization-8c0091a`
+- Commit de referência:
+  - `081d1a7`
+- GitHub:
+  - repositório local e remoto sincronizados.
+- Testes:
+  - 42 aprovados no checkpoint de autenticação.
+  - 0 falhas.
+
+### Persistência de usuários
+
+Foi identificado que `data/users.json` utilizava o filesystem efêmero do container Railway.
+
+Correção aplicada:
+
+- Railway Volume criado e anexado ao serviço `fii-select`.
+- Mount path:
+  - `/data`
+- Variável de ambiente:
+  - `USERS_DATA_PATH=/data/users.json`
+- Fallback local preservado:
+  - `data/users.json`
+
+Validação realizada:
+
+1. usuário cadastrado em produção;
+2. usuário confirmado em `/admin/api/users`;
+3. novo deploy executado;
+4. usuário continuou persistido após o deploy.
+
+Status:
+
+- persistência validada em produção;
+- não remover o Volume sem planejamento;
+- não alterar `USERS_DATA_PATH` sem validar migração dos dados existentes.
+
+### Autenticação
+
+Foi identificado e corrigido um comportamento em que um e-mail inexistente poderia obter acesso indevido.
+
+Estado validado:
+
+- e-mail inexistente não cria sessão;
+- e-mail inexistente não acessa a ferramenta;
+- conta válida continua funcionando;
+- conta `internal` válida continua funcionando;
+- fluxos comerciais não foram alterados.
+
+Sessão de usuário:
+
+- `fii_select_session`
+
+Regra de segurança:
+
+- falhas de leitura;
+- usuário inexistente;
+- resposta inesperada;
+- usuário sem política válida de acesso;
+
+devem resultar em negação de acesso.
+
+Princípio:
+
+`fail closed`
+
+### Conta interna
+
+Foi implementado:
+
+- `accountType: "customer"`
+- `accountType: "internal"`
+
+Regras da conta `internal`:
+
+- usa login normal da ferramenta;
+- não depende de `ADMIN_USER`;
+- não depende de `ADMIN_PASSWORD`;
+- não conta como Plano Fundador;
+- não ocupa vaga dos 100 fundadores;
+- não conta como Trial;
+- não entra em receita;
+- não entra em KPIs comerciais;
+- não recebe automações comerciais aplicáveis a contas comerciais;
+- pode acessar a ferramenta conforme política interna.
+
+Conta interna atual:
+
+- ID:
+  - `18adf96b-dbcb-4e94-8a15-caf312246c83`
+- Nome:
+  - Rafael Caprecci
+- `accountType`:
+  - `internal`
+
+Não registrar neste README:
+
+- senha;
+- hash de senha;
+- token;
+- `ADMIN_PASSWORD`;
+- credenciais Brevo;
+- credenciais PagBank;
+- `BRAPI_TOKEN`;
+- chaves SSH;
+- segredos de produção.
+
+### Autenticação administrativa
+
+`ADMIN_USER` e `ADMIN_PASSWORD` são exclusivos do Basic Auth administrativo.
+
+Protegem:
+
+- `/admin`
+- `/admin/api/*`
+
+Não confundir com usuários normais da ferramenta.
+
+Arquitetura:
+
+`ADMIN_USER + ADMIN_PASSWORD`
+→ acesso operacional ao Admin
+
+`data/users.json`
+→ usuários normais da ferramenta
+
+`accountType: "internal"`
+→ atributo de usuário normal com política não comercial
+
+Não criar:
+
+- `ADMIN_USER_FERRAMENTA`
+
+### Pendência de segurança
+
+O fluxo de autenticação foi corrigido, porém permanece uma pendência no fluxo de cadastro:
+
+- um e-mail sintaticamente válido, mas inexistente, pode ser cadastrado e persistido;
+- atualmente não há confirmação de posse do e-mail por link de verificação.
+
+Recomendação antes de lançamento amplo:
+
+- auditar cadastro;
+- implementar ou avaliar confirmação de e-mail;
+- garantir que usuário não verificado não seja tratado como usuário comercial ativo;
+- impedir poluição de métricas de Fundador, Trial e receita.
+
+Status:
+
+`PENDENTE DE DECISÃO / IMPLEMENTAÇÃO`
+
+### Regras antes de novas alterações críticas
+
+Antes de alterações em:
+
+- autenticação;
+- cadastro;
+- persistência;
+- usuários;
+- sessões;
+- Admin;
+- Trial;
+- Plano Fundador;
+- PagBank;
+- Brevo;
+
+executar:
+
+1. `git status`
+2. revisar diff
+3. verificar arquivos sensíveis
+4. rodar suíte completa de testes
+5. confirmar branch atual
+6. confirmar sincronização com remoto
+7. criar commit apenas se houver alterações válidas
+8. não usar `force push`
+9. validar produção após deploy
+
+### Proibições
+
+Nunca commitar:
+
+- `.env`
+- senhas
+- tokens
+- credenciais administrativas
+- `BRAPI_TOKEN`
+- chaves Brevo
+- credenciais PagBank
+- chaves privadas
+- chaves SSH
+- certificados privados
+- dados sensíveis de usuários
