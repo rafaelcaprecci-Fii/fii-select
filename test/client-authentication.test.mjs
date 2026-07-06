@@ -90,6 +90,16 @@ test("login e ferramenta operam em modo fail-closed", async (context) => {
       status: "pending_founder",
     },
     {
+      id: "unverified-user",
+      name: "Conta não verificada",
+      email: "unverified@example.com",
+      emailVerified: false,
+      accountType: "customer",
+      intent: "founder",
+      plan: "fundador",
+      status: "active",
+    },
+    {
       id: "duplicate-one",
       name: "Duplicado um",
       email: "duplicate@example.com",
@@ -134,6 +144,7 @@ test("login e ferramenta operam em modo fail-closed", async (context) => {
     "active@",
     "active@example.co",
     "duplicate@example.com",
+    "unverified@example.com",
   ]) {
     const response = await login(baseUrl, email);
     assert.equal(response.status, 401);

@@ -2,8 +2,12 @@ export function isInternalAccount(user) {
   return String(user?.accountType || "").trim().toLowerCase() === "internal";
 }
 
+export function isEmailVerified(user) {
+  return user?.emailVerified !== false;
+}
+
 export function isTrialUser(user) {
-  if (isInternalAccount(user)) return false;
+  if (isInternalAccount(user) || !isEmailVerified(user)) return false;
   const plan = String(user?.plan || "").trim().toLowerCase();
   return (
     user?.intent === "trial" ||
@@ -13,7 +17,7 @@ export function isTrialUser(user) {
 }
 
 export function isFounderUser(user) {
-  if (isInternalAccount(user)) return false;
+  if (isInternalAccount(user) || !isEmailVerified(user)) return false;
   const plan = String(user?.plan || "").trim().toLowerCase();
   return !isTrialUser(user) && (user?.intent === "founder" || plan.includes("fundador"));
 }

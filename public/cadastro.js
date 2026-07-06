@@ -58,6 +58,11 @@ async function submitRegistration(event) {
     });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || "Não foi possível concluir o cadastro.");
+    if (result.verificationEmail?.ok === false) {
+      throw new Error(
+        "Cadastro salvo, mas não foi possível enviar a confirmação agora. Tente novamente em instantes.",
+      );
+    }
     window.location.href = "/cadastro-confirmado";
   } catch (error) {
     showFormMessage(error.message);

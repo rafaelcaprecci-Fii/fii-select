@@ -7,6 +7,12 @@ import { normalizeCrossedReading } from "./lib/crossed-reading.mjs";
 import { createBrapiUsageTracker } from "./lib/brapi-usage.mjs";
 import { buildAppUrl } from "./lib/app-urls.mjs";
 import {
+  applyEmailVerification,
+  createEmailVerification,
+  hashEmailVerificationToken,
+  validateEmailVerificationToken,
+} from "./lib/email-verification.mjs";
+import {
   ensureUsersFile,
   readUsersFile,
   resolveUsersDataPath,
@@ -16,6 +22,7 @@ import {
   accountTypeForPublicRegistration,
   canAccountAccessTool,
   findUniqueUserByEmail,
+  isEmailVerified,
   isInternalAccount,
   normalizeAdministrativeAccountType,
   shouldRunCommercialAutomation,
@@ -389,6 +396,39 @@ function brevoTemplatePayload({ user, event, origin, emailFrom }) {
   };
 }
 
+async function sendEmailVerificationEmail({ user, token }) {
+  const brevoApiKey = requireEnv("BREVO_API_KEY");
+  const emailFrom = requireEnv("EMAIL_FROM");
+  const verificationUrl = buildAppUrl(
+    `/api/users/verify-email?token=${encodeURIComponent(token)}`,
+  );
+  const response = await fetch("https://api.brevo.com/v3/smtp/email", {
+    method: "POST",
+    headers: {
+      "api-key": brevoApiKey,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      sender: parseEmailFrom(emailFrom),
+      to: [{ email: user.email, name: nonEmptyString(user.name, "Investidor") }],
+      subject: "Confirme seu e-mail no FII Select",
+      htmlContent: [
+        "<p>Olá!</p>",
+        "<p>Confirme seu e-mail para continuar no FII Select.</p>",
+        `<p><a href="${verificationUrl}">Confirmar meu e-mail</a></p>`,
+        "<p>Este link é válido por 24 horas e pode ser usado uma única vez.</p>",
+      ].join(""),
+    }),
+  });
+
+  if (!response.ok) {
+    const message = await response.text();
+    const error = new Error(publicEmailError());
+    error.internalMessage = `Brevo API respondeu ${response.status}: ${message.slice(0, 180)}`;
+    throw error;
+  }
+}
+
 async function sendBrevoTransactionalEmail({ user, event, origin }) {
   const brevoApiKey = requireEnv("BREVO_API_KEY");
   const emailFrom = requireEnv("EMAIL_FROM");
@@ -477,6 +517,7 @@ function publicUser(user) {
     id: user.id,
     name: user.name,
     email: user.email,
+    emailVerified: isEmailVerified(user),
     phone: user.phone,
     accountType: user.accountType || "customer",
     intent: user.intent || "general",
@@ -547,6 +588,7 @@ function createUser(input) {
     name: input.name,
     email: input.email,
     phone: input.phone,
+    emailVerified: false,
     accountType: accountTypeForPublicRegistration(),
     intent,
     plan: cleanText(plan, 40),
@@ -695,20 +737,89 @@ async function sendAndRecord(user, event, origin) {
   }
 }
 
+async function issueEmailVerification(user) {
+  const verification = createEmailVerification();
+  user.emailVerificationTokenHash = verification.tokenHash;
+  user.emailVerificationExpiresAt = verification.expiresAt;
+  user.updatedAt = new Date().toISOString();
+
+  try {
+    await sendEmailVerificationEmail({ user, token: verification.token });
+    user.lastEmailSentAt = new Date().toISOString();
+    user.lastEmailTemplate = "emailVerification";
+    user.lastEmailError = "";
+    user.history = user.history || [];
+    user.history.unshift(
+      `${formatBrazilDateTime(user.lastEmailSentAt)} - E-mail de confirmação enviado`,
+    );
+    return { ok: true };
+  } catch (error) {
+    if (error.internalMessage) {
+      logInternalError("Brevo confirmação de e-mail", { message: error.internalMessage });
+    }
+    user.lastEmailError = error.message || publicEmailError();
+    user.history = user.history || [];
+    user.history.unshift(
+      `${formatBrazilDateTime(new Date())} - Falha no e-mail de confirmação: ${user.lastEmailError}`,
+    );
+    return { ok: false, error: user.lastEmailError };
+  }
+}
+
 async function registerUser(input, origin) {
   const validatedInput = validateRegistrationInput(input);
   return withUsers(async (users) => {
-    const duplicate = users.some(
+    const duplicates = users.filter(
       (item) => String(item.email || "").trim().toLowerCase() === validatedInput.email,
     );
-    if (duplicate) {
-      throw new Error(
-        "Este e-mail já possui cadastro. Tente entrar ou aguarde a análise do seu acesso.",
-      );
+    if (duplicates.length > 1) {
+      throw new Error("Não foi possível processar este cadastro. Entre em contato com o suporte.");
+    }
+    if (duplicates.length === 1) {
+      const existingUser = duplicates[0];
+      if (isEmailVerified(existingUser)) {
+        throw new Error(
+          "Este e-mail já possui cadastro. Tente entrar ou aguarde a análise do seu acesso.",
+        );
+      }
+      const verificationEmail = await issueEmailVerification(existingUser);
+      return {
+        user: publicUser(existingUser),
+        verificationEmail,
+        verificationPending: true,
+        existing: true,
+      };
     }
 
     const user = createUser(validatedInput);
     users.unshift(user);
+    const verificationEmail = await issueEmailVerification(user);
+    return {
+      user: publicUser(user),
+      verificationEmail,
+      verificationPending: true,
+      existing: false,
+    };
+  });
+}
+
+async function confirmUserEmail(token, origin) {
+  const tokenHash = hashEmailVerificationToken(token);
+  return withUsers(async (users) => {
+    const matches = users.filter(
+      (user) => user.emailVerificationTokenHash === tokenHash,
+    );
+    if (matches.length !== 1 || !validateEmailVerificationToken(matches[0], token)) {
+      throw new Error(
+        "Link de confirmação inválido, expirado ou já utilizado.",
+      );
+    }
+
+    const user = matches[0];
+    applyEmailVerification(user);
+    user.updatedAt = new Date().toISOString();
+    user.history = user.history || [];
+    user.history.unshift(`${formatBrazilDateTime(user.updatedAt)} - E-mail confirmado`);
     const email = await sendAndRecord(user, registrationTemplateEvent(user), origin);
     return { user: publicUser(user), email };
   });
@@ -721,6 +832,13 @@ async function changeUserStatus(id, status, origin, options = {}) {
 
     const previousStatus = normalizeStatus(user.status);
     const nextStatus = normalizeStatus(status);
+    if (
+      !isInternalAccount(user)
+      && !isEmailVerified(user)
+      && ["active", "trial_active"].includes(nextStatus)
+    ) {
+      throw new Error("Confirme o e-mail do usuário antes de liberar o acesso.");
+    }
     user.status = nextStatus;
     user.updatedAt = new Date().toISOString();
     user.history = user.history || [];
@@ -796,6 +914,7 @@ async function findUserForLogin(email) {
   if (!match.ok) return null;
 
   const user = match.user;
+  if (!isInternalAccount(user) && !isEmailVerified(user)) return null;
   return {
     id: user.id,
     name: user.name,
@@ -1776,6 +1895,41 @@ const server = http.createServer(async (req, res) => {
         return json(res, 201, { ok: true, ...result });
       } catch (error) {
         return json(res, 400, { ok: false, error: error.message || "Cadastro inválido." });
+      }
+    }
+    if (url.pathname === "/api/users/verify-email" && req.method === "GET") {
+      try {
+        await confirmUserEmail(url.searchParams.get("token") || "", origin);
+        res.writeHead(302, {
+          ...securityHeaders(),
+          Location: "/login.html?emailVerified=1",
+          "Cache-Control": "no-store",
+        });
+        res.end();
+        return;
+      } catch (error) {
+        return json(res, 400, {
+          ok: false,
+          error: error.message || "Não foi possível confirmar o e-mail.",
+        });
+      }
+    }
+    if (url.pathname === "/api/users/resend-verification" && req.method === "POST") {
+      if (!checkRateLimit(req, res, "resend-verification", 10, 30 * 60 * 1000)) return;
+      try {
+        const body = await readJsonBody(req);
+        const email = cleanText(body.email, 254).toLowerCase();
+        const result = await withUsers(async (users) => {
+          const match = findUniqueUserByEmail(users, email);
+          if (!match.ok || isEmailVerified(match.user)) {
+            return { ok: true };
+          }
+          const verificationEmail = await issueEmailVerification(match.user);
+          return { ok: true, verificationEmail };
+        });
+        return json(res, 200, result);
+      } catch {
+        return json(res, 200, { ok: true });
       }
     }
     if (url.pathname === "/api/users/login-status" && req.method === "POST") {

@@ -68,3 +68,21 @@ test("conta interna nunca entra nas métricas de fundador ou trial", () => {
     inactiveOrArchived: 0,
   });
 });
+
+test("conta não verificada não entra nas métricas comerciais", () => {
+  const unverified = {
+    emailVerified: false,
+    intent: "founder",
+    plan: "fundador",
+    status: "active",
+  };
+
+  assert.equal(isFounderUser(unverified), false);
+  assert.equal(isTrialUser(unverified), false);
+  assert.deepEqual(calculateFounderMetrics([unverified]), {
+    total: 0,
+    approved: 0,
+    active: 0,
+    inactiveOrArchived: 0,
+  });
+});

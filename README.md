@@ -1250,23 +1250,55 @@ Não criar:
 
 - `ADMIN_USER_FERRAMENTA`
 
-### Pendência de segurança
+### Verificação de e-mail no cadastro
 
-O fluxo de autenticação foi corrigido, porém permanece uma pendência no fluxo de cadastro:
-
-- um e-mail sintaticamente válido, mas inexistente, pode ser cadastrado e persistido;
-- atualmente não há confirmação de posse do e-mail por link de verificação.
-
-Recomendação antes de lançamento amplo:
-
-- auditar cadastro;
-- implementar ou avaliar confirmação de e-mail;
-- garantir que usuário não verificado não seja tratado como usuário comercial ativo;
-- impedir poluição de métricas de Fundador, Trial e receita.
+A pendência anterior sobre ausência de confirmação de posse do e-mail foi tratada localmente na branch `codex/stabilization-8c0091a`.
 
 Status:
 
-`PENDENTE DE DECISÃO / IMPLEMENTAÇÃO`
+`IMPLEMENTADO LOCALMENTE / DEPLOY DE PRODUÇÃO PENDENTE`
+
+Importante:
+
+- as mudanças ainda não foram deployadas;
+- a validação em produção ainda está pendente;
+- não registrar tokens reais, hashes reais, senhas, chaves ou credenciais neste README.
+
+Arquitetura implementada localmente:
+
+- novos cadastros são criados com `emailVerified: false`;
+- o frontend não pode sobrescrever `emailVerified`;
+- o token de verificação é gerado com 256 bits criptograficamente seguros;
+- apenas o SHA-256 do token é armazenado;
+- o token expira em 24 horas;
+- o token é de uso único;
+- a confirmação ocorre via `GET /api/users/verify-email?token=...`;
+- existe reenvio de confirmação sem duplicar cadastro;
+- o primeiro e-mail enviado pela Brevo é o e-mail de confirmação;
+- o template comercial de cadastro recebido só é enviado após a confirmação do e-mail.
+
+Regras para usuários não verificados:
+
+- não fazem login;
+- não acessam a ferramenta;
+- não iniciam trial;
+- não podem ser ativados;
+- não entram nas métricas comerciais;
+- não contam como Plano Fundador;
+- não contam como Trial.
+
+Compatibilidade preservada:
+
+- usuários antigos permanecem compatíveis;
+- conta `internal` continua funcionando;
+- PagBank não foi alterado;
+- BRAPI não foi alterada;
+- valuation não foi alterado.
+
+Validação local:
+
+- 48 testes aprovados;
+- 0 falhas.
 
 ### Regras antes de novas alterações críticas
 

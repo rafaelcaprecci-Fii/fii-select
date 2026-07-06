@@ -185,7 +185,9 @@ function renderUserDetails(user) {
 }
 
 function renderKpis() {
-  const commercialUsers = users.filter((user) => !isInternalAccount(user));
+  const commercialUsers = users.filter(
+    (user) => !isInternalAccount(user) && user.emailVerified !== false,
+  );
   const total = commercialUsers.length;
   const active = commercialUsers.filter((user) => ["active", "approved", "trial_active"].includes(user.status)).length;
   const pending = commercialUsers.filter((user) => ["pending", "pending_trial", "pending_founder"].includes(user.status)).length;

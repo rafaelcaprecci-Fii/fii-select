@@ -1,5 +1,15 @@
 const loginForm = document.querySelector("[data-login-form]");
 
+if (loginForm && new URLSearchParams(window.location.search).get("emailVerified") === "1") {
+  let message = loginForm.querySelector(".form-message");
+  if (!message) {
+    message = document.createElement("p");
+    message.className = "form-message";
+    loginForm.appendChild(message);
+  }
+  message.textContent = "E-mail confirmado. Você já pode entrar.";
+}
+
 loginForm?.addEventListener("submit", async (event) => {
   event.preventDefault();
   const button = loginForm.querySelector("button");

@@ -21,6 +21,16 @@ test("conta interna acessa a ferramenta independentemente do status comercial", 
   assert.equal(canAccountAccessTool(user, "pending_founder"), true);
 });
 
+test("conta comercial não verificada não acessa a ferramenta", () => {
+  assert.equal(
+    canAccountAccessTool(
+      { accountType: "customer", emailVerified: false },
+      "active",
+    ),
+    false,
+  );
+});
+
 test("contas comuns preservam a regra atual de acesso", () => {
   assert.equal(canAccountAccessTool({ accountType: "customer" }, "active"), true);
   assert.equal(canAccountAccessTool({ accountType: "customer" }, "trial_active"), true);
@@ -30,6 +40,10 @@ test("contas comuns preservam a regra atual de acesso", () => {
 test("conta interna não executa automações comerciais", () => {
   assert.equal(shouldRunCommercialAutomation({ accountType: "internal" }), false);
   assert.equal(shouldRunCommercialAutomation({ accountType: "customer" }), true);
+  assert.equal(
+    shouldRunCommercialAutomation({ accountType: "customer", emailVerified: false }),
+    false,
+  );
 });
 
 test("busca administrativa localiza somente e-mail exato normalizado", () => {
