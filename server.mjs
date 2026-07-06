@@ -399,6 +399,18 @@ function brevoTemplatePayload({ user, event, origin, emailFrom }) {
 async function sendEmailVerificationEmail({ user, token }) {
   const brevoApiKey = requireEnv("BREVO_API_KEY");
   const emailFrom = requireEnv("EMAIL_FROM");
+  const templateEnv = "BREVO_TEMPLATE_EMAIL_VERIFICACAO";
+  let templateId;
+  try {
+    templateId = Number(requireEnv(templateEnv));
+    if (!Number.isInteger(templateId) || templateId <= 0) {
+      throw new Error(`Template Brevo invalido para ${templateEnv}.`);
+    }
+  } catch (error) {
+    const safeError = new Error(publicEmailError());
+    safeError.internalMessage = error.message || `Template Brevo invalido para ${templateEnv}.`;
+    throw safeError;
+  }
   const verificationUrl = buildAppUrl(
     `/api/users/verify-email?token=${encodeURIComponent(token)}`,
   );
@@ -411,13 +423,10 @@ async function sendEmailVerificationEmail({ user, token }) {
     body: JSON.stringify({
       sender: parseEmailFrom(emailFrom),
       to: [{ email: user.email, name: nonEmptyString(user.name, "Investidor") }],
-      subject: "Confirme seu e-mail no FII Select",
-      htmlContent: [
-        "<p>Olá!</p>",
-        "<p>Confirme seu e-mail para continuar no FII Select.</p>",
-        `<p><a href="${verificationUrl}">Confirmar meu e-mail</a></p>`,
-        "<p>Este link é válido por 24 horas e pode ser usado uma única vez.</p>",
-      ].join(""),
+      templateId,
+      params: {
+        LINK_EMAIL: verificationUrl,
+      },
     }),
   });
 
