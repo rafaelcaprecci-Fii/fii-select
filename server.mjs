@@ -205,6 +205,16 @@ function createClientSession(res, req, userId) {
   );
 }
 
+function clearClientSession(res, req) {
+  const token = parseCookies(req)[clientSessionCookie] || "";
+  if (token) clientSessions.delete(token);
+  const secure = String(req.headers["x-forwarded-proto"] || "").split(",")[0].trim() === "https";
+  res.setHeader(
+    "Set-Cookie",
+    `${clientSessionCookie}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${secure ? "; Secure" : ""}`,
+  );
+}
+
 async function sessionUser(req) {
   const token = parseCookies(req)[clientSessionCookie] || "";
   const session = clientSessions.get(token);
@@ -779,22 +789,21 @@ async function resendUserEmail(id, origin) {
 
 async function findUserForLogin(email) {
   const normalizedEmail = cleanText(email, 254).toLowerCase();
-  if (!normalizedEmail) throw new Error("Informe o e-mail.");
+  if (!normalizedEmail) return null;
 
-  return withUsers(async (users) => {
-    const user = users.find(
-      (item) => String(item.email || "").trim().toLowerCase() === normalizedEmail,
-    );
-    if (!user) return null;
-    return {
-      id: user.id,
-      name: user.name,
-      accountType: user.accountType || "customer",
-      intent: user.intent || "general",
-      status: normalizeStatus(user.status),
-      paymentStatus: user.paymentStatus || "",
-    };
-  });
+  const users = await readUsers();
+  const match = findUniqueUserByEmail(users, normalizedEmail);
+  if (!match.ok) return null;
+
+  const user = match.user;
+  return {
+    id: user.id,
+    name: user.name,
+    accountType: user.accountType || "customer",
+    intent: user.intent || "general",
+    status: normalizeStatus(user.status),
+    paymentStatus: user.paymentStatus || "",
+  };
 }
 
 async function markUserAsInternal(id) {
@@ -1770,16 +1779,34 @@ const server = http.createServer(async (req, res) => {
       }
     }
     if (url.pathname === "/api/users/login-status" && req.method === "POST") {
+      clearClientSession(res, req);
       if (!checkRateLimit(req, res, "client-login", 30, 10 * 60 * 1000)) return;
-      const body = await readJsonBody(req);
-      const user = await findUserForLogin(body.email);
-      if (user) createClientSession(res, req, user.id);
-      return json(res, 200, {
-        ok: true,
-        authenticated: Boolean(user),
-        user,
-        redirectTo: user ? clientFlowPath(user) : "",
-      });
+      try {
+        const body = await readJsonBody(req);
+        const user = await findUserForLogin(body.email);
+        if (!user) {
+          return json(res, 401, {
+            ok: false,
+            authenticated: false,
+            error: "Cadastro não encontrado.",
+          });
+        }
+
+        createClientSession(res, req, user.id);
+        return json(res, 200, {
+          ok: true,
+          authenticated: true,
+          user,
+          redirectTo: clientFlowPath(user),
+        });
+      } catch (error) {
+        logInternalError("Login de cliente", { message: error.message || "Falha de leitura." });
+        return json(res, 503, {
+          ok: false,
+          authenticated: false,
+          error: "Não foi possível entrar agora. Tente novamente em instantes.",
+        });
+      }
     }
     if (url.pathname === "/api/users/session" && req.method === "GET") {
       const user = await sessionUser(req);

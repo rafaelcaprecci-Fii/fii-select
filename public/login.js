@@ -14,9 +14,16 @@ loginForm?.addEventListener("submit", async (event) => {
     });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || "Não foi possível consultar o cadastro.");
-    if (!result.user) throw new Error("Cadastro não encontrado.");
+    if (
+      result.authenticated !== true
+      || !result.user?.id
+      || typeof result.redirectTo !== "string"
+      || !result.redirectTo.startsWith("/")
+    ) {
+      throw new Error("Não foi possível validar o cadastro.");
+    }
 
-    window.location.href = result.redirectTo || "/assinar.html";
+    window.location.href = result.redirectTo;
   } catch (error) {
     let message = loginForm.querySelector(".form-message");
     if (!message) {
