@@ -7,6 +7,12 @@ import { normalizeCrossedReading } from "./lib/crossed-reading.mjs";
 import { createBrapiUsageTracker } from "./lib/brapi-usage.mjs";
 import { buildAppUrl } from "./lib/app-urls.mjs";
 import {
+  ensureUsersFile,
+  readUsersFile,
+  resolveUsersDataPath,
+  writeUsersFile,
+} from "./lib/users-json-store.mjs";
+import {
   accountTypeForPublicRegistration,
   canAccountAccessTool,
   findUniqueUserByEmail,
@@ -22,8 +28,10 @@ import {
 const root = fileURLToPath(new URL(".", import.meta.url));
 const publicDir = join(root, "public");
 const outputDir = join(root, "outputs");
-const dataDir = join(root, "data");
-const usersFile = join(dataDir, "users.json");
+const usersFile = resolveUsersDataPath({
+  rootDir: root,
+  configuredPath: process.env.USERS_DATA_PATH,
+});
 const port = Number(process.env.PORT || 4173);
 const host = process.env.HOST || "127.0.0.1";
 const brapiToken = process.env.BRAPI_TOKEN || "";
@@ -424,18 +432,11 @@ async function sendBrevoApiTestEmail() {
 }
 
 async function readUsers() {
-  try {
-    const data = await readFile(usersFile, "utf8");
-    return JSON.parse(data);
-  } catch (error) {
-    if (error.code === "ENOENT") return [];
-    throw error;
-  }
+  return readUsersFile(usersFile);
 }
 
 async function writeUsers(users) {
-  await mkdir(dataDir, { recursive: true });
-  await writeFile(usersFile, JSON.stringify(users, null, 2));
+  return writeUsersFile(usersFile, users);
 }
 
 function withUsers(mutator) {
@@ -1885,6 +1886,8 @@ const server = http.createServer(async (req, res) => {
     return json(res, 400, { error: error.message || "Falha inesperada." });
   }
 });
+
+await ensureUsersFile(usersFile);
 
 server.listen(port, host, () => {
   console.log(`FII Select widget: http://${host}:${port}`);
