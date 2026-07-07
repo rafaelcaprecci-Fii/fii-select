@@ -232,6 +232,7 @@ async function addTicker(ticker) {
   rowRiskRates.set(normalized, Number(document.querySelector("#shared-risk-rate").value));
   await saveComparisonSelection();
   refreshComparison();
+  loadSuggestions();
 }
 
 async function loadSuggestions(fund = { ticker: currentTicker() }) {
@@ -240,6 +241,7 @@ async function loadSuggestions(fund = { ticker: currentTicker() }) {
       ticker: fund.ticker,
       segmentType: fund.segmentType || "",
       segmentoAtuacao: fund.segmentoAtuacao || "",
+      exclude: compareTickers.join(","),
     });
     const response = await fetch(`/api/suggestions?${params}`);
     const result = await response.json();
@@ -408,7 +410,9 @@ comparisonBody.addEventListener("click", (event) => {
 });
 suggestionList.addEventListener("click", (event) => {
   const ticker = event.target.dataset.ticker;
-  if (ticker) addTicker(ticker);
+  if (!ticker) return;
+  event.target.closest(".suggestion-card")?.remove();
+  addTicker(ticker);
 });
 
 async function initialize() {

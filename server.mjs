@@ -1717,6 +1717,12 @@ function suggestions(url) {
   if (!/^[A-Z]{4}[0-9]{2}$/.test(ticker)) {
     throw new Error("Informe um ticker de FII no formato MXRF11.");
   }
+  const excludedTickers = new Set(
+    String(url.searchParams.get("exclude") || "")
+      .split(",")
+      .map((item) => normalizeFiiTicker(item))
+      .filter(Boolean),
+  );
   const selected = fiiCatalog.find((item) => item.ticker === ticker);
   const segmentType = selected?.segmentType || url.searchParams.get("segmentType") || "";
   const segmentoAtuacao = selected?.segmentoAtuacao || url.searchParams.get("segmentoAtuacao") || "";
@@ -1729,10 +1735,12 @@ function suggestions(url) {
   const { precision, matches: comparableMatches } = selectComparableFunds(
     origin,
     fiiCatalog,
-    5,
+    fiiCatalog.length,
   );
   const originClassification = normalizeFundClassification(origin);
   const matches = comparableMatches
+    .filter((item) => !excludedTickers.has(item.ticker))
+    .slice(0, 5)
     .map((item) => ({
       ...item,
       classification: normalizeFundClassification(item, fiiCatalog),

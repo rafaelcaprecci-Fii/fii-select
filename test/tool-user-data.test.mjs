@@ -148,6 +148,17 @@ test("pesquisas e comparação são persistidas por usuário autenticado", async
   });
   assert.equal(internalSearch.status, 200);
 
+  const suggestions = await fetch(
+    `${baseUrl}/api/suggestions?ticker=HGLG11&exclude=BTLG11,BRCO11`,
+    { headers: { Cookie: activeCookie } },
+  );
+  assert.equal(suggestions.status, 200);
+  const suggestionTickers = (await suggestions.json()).suggestions.map((item) => item.ticker);
+  assert.ok(!suggestionTickers.includes("BTLG11"));
+  assert.ok(!suggestionTickers.includes("BRCO11"));
+  assert.equal(new Set(suggestionTickers).size, suggestionTickers.length);
+  assert.ok(suggestionTickers.length > 0);
+
   const searchEvents = await readJson(searchesPath);
   assert.deepEqual(
     searchEvents.map((event) => ({ userId: event.userId, ticker: event.ticker })),
