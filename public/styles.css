@@ -829,8 +829,9 @@ body.auth-page .notice {
 
 .home-page .home-footer {
   display: grid;
-  grid-template-columns: 1fr auto 1fr;
+  grid-template-columns: repeat(3, 1fr);
   align-items: center;
+  justify-items: center;
   min-height: 86px;
   padding: 0 160px;
   background: #102037;
@@ -840,7 +841,7 @@ body.auth-page .notice {
 .home-page .home-footer > div {
   display: flex;
   align-items: center;
-  justify-self: end;
+  justify-self: center;
   gap: 18px;
 }
 
@@ -854,7 +855,7 @@ body.auth-page .notice {
   display: flex;
   align-items: center;
   gap: 18px;
-  margin-left: 150px;
+  margin-left: 0;
 }
 
 .home-page .home-social img {
@@ -875,7 +876,7 @@ body.auth-page .notice {
 }
 
 .home-page .home-2bold {
-  justify-self: end;
+  justify-self: center;
   width: 112px;
   height: auto;
 }

@@ -19,6 +19,12 @@ import {
   writeUsersFile,
 } from "./lib/users-json-store.mjs";
 import {
+  ensureJsonFile,
+  readJsonFile,
+  resolveJsonDataPath,
+  writeJsonFileAtomic,
+} from "./lib/json-file-store.mjs";
+import {
   accountTypeForPublicRegistration,
   canAccountAccessTool,
   findUniqueUserByEmail,
@@ -38,6 +44,16 @@ const outputDir = join(root, "outputs");
 const usersFile = resolveUsersDataPath({
   rootDir: root,
   configuredPath: process.env.USERS_DATA_PATH,
+});
+const fiiSearchLogFile = resolveJsonDataPath({
+  rootDir: root,
+  configuredPath: process.env.FII_SEARCH_LOG_PATH,
+  fallbackRelativePath: join("data", "fii-searches.json"),
+});
+const userComparisonsFile = resolveJsonDataPath({
+  rootDir: root,
+  configuredPath: process.env.USER_COMPARISONS_PATH,
+  fallbackRelativePath: join("data", "user-comparisons.json"),
 });
 const port = Number(process.env.PORT || 4173);
 const host = process.env.HOST || "127.0.0.1";
@@ -85,6 +101,8 @@ const brapiUsage = createBrapiUsageTracker({ lastRequestsLimit: 50 });
 const clientSessions = new Map();
 const rateLimits = new Map();
 let usersQueue = Promise.resolve();
+let fiiSearchLogQueue = Promise.resolve();
+let userComparisonsQueue = Promise.resolve();
 const fiiCatalog = [
   { ticker: "MXRF11", segmentType: "papel", segmentoAtuacao: "Títulos e Valores Mobiliários", label: "Maxi Renda", sandbox: true },
   { ticker: "KNCR11", segmentType: "papel", segmentoAtuacao: "Títulos e Valores Mobiliários", label: "Kinea Rendimentos", sandbox: false },
@@ -507,6 +525,84 @@ function withUsers(mutator) {
   });
   usersQueue = run.catch(() => {});
   return run;
+}
+
+function normalizeFiiTicker(value) {
+  const ticker = String(value || "").trim().toUpperCase();
+  return /^[A-Z]{4}[0-9]{2}$/.test(ticker) ? ticker : "";
+}
+
+function sanitizeComparisonTickers(value) {
+  const rawTickers = Array.isArray(value)
+    ? value
+    : String(value || "").split(",");
+  const tickers = [];
+  for (const item of rawTickers) {
+    const ticker = normalizeFiiTicker(item);
+    if (!ticker || tickers.includes(ticker)) continue;
+    tickers.push(ticker);
+    if (tickers.length >= 5) break;
+  }
+  return tickers;
+}
+
+function withFiiSearchLog(mutator) {
+  const run = fiiSearchLogQueue.then(async () => {
+    const events = await readJsonFile(fiiSearchLogFile, []);
+    const result = await mutator(events);
+    await writeJsonFileAtomic(fiiSearchLogFile, events);
+    return result;
+  });
+  fiiSearchLogQueue = run.catch(() => {});
+  return run;
+}
+
+function withUserComparisons(mutator) {
+  const run = userComparisonsQueue.then(async () => {
+    const comparisons = await readJsonFile(userComparisonsFile, []);
+    const result = await mutator(comparisons);
+    await writeJsonFileAtomic(userComparisonsFile, comparisons);
+    return result;
+  });
+  userComparisonsQueue = run.catch(() => {});
+  return run;
+}
+
+async function recordFiiSearch(user, ticker) {
+  const normalizedTicker = normalizeFiiTicker(ticker);
+  if (!user?.id || !normalizedTicker) return;
+  await withFiiSearchLog(async (events) => {
+    events.push({
+      userId: user.id,
+      ticker: normalizedTicker,
+      searchedAt: new Date().toISOString(),
+    });
+  });
+}
+
+async function getUserComparison(userId) {
+  return withUserComparisons(async (comparisons) => {
+    const comparison = comparisons.find((item) => item.userId === userId);
+    return {
+      tickers: sanitizeComparisonTickers(comparison?.tickers || ["MXRF11"]),
+      updatedAt: comparison?.updatedAt || "",
+    };
+  });
+}
+
+async function saveUserComparison(userId, tickers) {
+  const normalizedTickers = sanitizeComparisonTickers(tickers);
+  return withUserComparisons(async (comparisons) => {
+    const now = new Date().toISOString();
+    const existing = comparisons.find((item) => item.userId === userId);
+    if (existing) {
+      existing.tickers = normalizedTickers;
+      existing.updatedAt = now;
+    } else {
+      comparisons.push({ userId, tickers: normalizedTickers, updatedAt: now });
+    }
+    return { tickers: normalizedTickers, updatedAt: now };
+  });
 }
 
 async function readJsonBody(req) {
@@ -2033,6 +2129,21 @@ const server = http.createServer(async (req, res) => {
         mode: brapiToken ? "token configurado" : "sandbox",
       });
     }
+    if (url.pathname === "/api/user-comparison") {
+      const user = await sessionUser(req);
+      if (!user) return json(res, 401, { ok: false, error: "Faça login para acessar a comparação." });
+      if (!canAccessTool(user)) {
+        return json(res, 403, { ok: false, error: "A ferramenta ainda não está liberada para este cadastro." });
+      }
+      if (req.method === "GET") {
+        return json(res, 200, { ok: true, ...(await getUserComparison(user.id)) });
+      }
+      if (req.method === "PATCH") {
+        const body = await readJsonBody(req);
+        return json(res, 200, { ok: true, ...(await saveUserComparison(user.id, body.tickers)) });
+      }
+      return json(res, 405, { ok: false, error: "Metodo nao permitido." });
+    }
     if (
       ["/api/valuation", "/api/suggestions", "/api/comparison", "/api/crossed-reading"]
         .includes(url.pathname)
@@ -2043,7 +2154,11 @@ const server = http.createServer(async (req, res) => {
         return json(res, 403, { error: "A ferramenta ainda não está liberada para este cadastro." });
       }
       try {
-        if (url.pathname === "/api/valuation") return json(res, 200, await valuation(url));
+        if (url.pathname === "/api/valuation") {
+          const result = await valuation(url);
+          await recordFiiSearch(user, result.ticker);
+          return json(res, 200, result);
+        }
         if (url.pathname === "/api/suggestions") return json(res, 200, suggestions(url));
         if (url.pathname === "/api/crossed-reading") {
           const ticker = (url.searchParams.get("ticker") || "").trim().toUpperCase();
@@ -2077,7 +2192,11 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-await ensureUsersFile(usersFile);
+await Promise.all([
+  ensureUsersFile(usersFile),
+  ensureJsonFile(fiiSearchLogFile, []),
+  ensureJsonFile(userComparisonsFile, []),
+]);
 
 server.listen(port, host, () => {
   console.log(`FII Select widget: http://${host}:${port}`);

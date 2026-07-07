@@ -195,7 +195,33 @@ function currentTicker() {
   return form.elements.ticker.value.trim().toUpperCase();
 }
 
-function addTicker(ticker) {
+async function loadSavedComparison() {
+  try {
+    const response = await fetch("/api/user-comparison");
+    const result = await response.json();
+    if (!response.ok || !Array.isArray(result.tickers)) return;
+    compareTickers.splice(0, compareTickers.length, ...result.tickers);
+    rowRiskRates.clear();
+    const sharedRisk = Number(document.querySelector("#shared-risk-rate").value);
+    compareTickers.forEach((ticker) => rowRiskRates.set(ticker, sharedRisk));
+  } catch {
+    // A comparação continua funcionando mesmo se a persistência estiver indisponível.
+  }
+}
+
+async function saveComparisonSelection() {
+  try {
+    await fetch("/api/user-comparison", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tickers: compareTickers }),
+    });
+  } catch {
+    // A comparação local não deve ser interrompida por falha de persistência.
+  }
+}
+
+async function addTicker(ticker) {
   const normalized = ticker.trim().toUpperCase();
   if (!normalized || compareTickers.includes(normalized)) return;
   if (compareTickers.length >= 5) {
@@ -204,6 +230,7 @@ function addTicker(ticker) {
   }
   compareTickers.push(normalized);
   rowRiskRates.set(normalized, Number(document.querySelector("#shared-risk-rate").value));
+  await saveComparisonSelection();
   refreshComparison();
 }
 
@@ -376,12 +403,19 @@ comparisonBody.addEventListener("click", (event) => {
   const index = compareTickers.indexOf(ticker);
   if (index >= 0) compareTickers.splice(index, 1);
   rowRiskRates.delete(ticker);
+  saveComparisonSelection();
   refreshComparison();
 });
 suggestionList.addEventListener("click", (event) => {
   const ticker = event.target.dataset.ticker;
   if (ticker) addTicker(ticker);
 });
-loadHealth();
-submit();
-refreshComparison();
+
+async function initialize() {
+  loadHealth();
+  await loadSavedComparison();
+  submit();
+  refreshComparison();
+}
+
+initialize();
