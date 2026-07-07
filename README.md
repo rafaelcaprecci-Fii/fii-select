@@ -1300,6 +1300,142 @@ Validação local:
 - 48 testes aprovados;
 - 0 falhas.
 
+## Checkpoint de Segurança e Produção — Pré-lançamento
+
+Data: 07/07/2026
+
+### Arquitetura atual
+
+- Home pública:
+  - `fiiselect.com.br`
+  - hospedada na HostGator.
+- Aplicação:
+  - `app.fiiselect.com.br`
+  - hospedada no Railway.
+- Persistência de usuários:
+  - Railway Volume montado em `/data`.
+  - variável `USERS_DATA_PATH` configurada para o arquivo persistente de usuários.
+
+### Persistência validada
+
+Estado validado em produção:
+
+- usuários persistem no Railway Volume;
+- usuário continuou salvo após redeploy;
+- `/admin/api/users` retorna os registros corretamente;
+- a fonte persistida segue sendo o arquivo definido por `USERS_DATA_PATH`.
+
+### Autenticação fail closed
+
+Estado validado:
+
+- e-mail inexistente não cria sessão;
+- e-mail inexistente não acessa a ferramenta;
+- conta `internal` válida continua funcionando;
+- a política de autenticação opera em modo `fail closed`.
+
+Regra:
+
+- falha de leitura;
+- usuário inexistente;
+- usuário ambíguo;
+- resposta inesperada;
+- usuário sem política válida de acesso;
+
+devem negar acesso.
+
+### Conta internal
+
+Estado atual:
+
+- `accountType: "internal"` é atributo de usuário normal da ferramenta;
+- a conta entra pelo login normal;
+- não depende de credenciais administrativas;
+- não conta como Plano Fundador;
+- não conta como Trial;
+- não entra em receita;
+- não entra nos KPIs comerciais.
+
+### Verificação de e-mail
+
+Estado validado:
+
+- novos usuários recebem `emailVerified: false`;
+- o frontend não pode sobrescrever `emailVerified`;
+- o token de verificação é criptográfico, com 256 bits;
+- apenas o SHA-256 do token é armazenado;
+- o token é válido por 24 horas;
+- o token é de uso único;
+- a confirmação ocorre via `GET /api/users/verify-email?token=...`;
+- existe reenvio de confirmação sem duplicar cadastro.
+
+Usuários não verificados:
+
+- não fazem login;
+- não acessam a ferramenta;
+- não iniciam trial;
+- não podem ser ativados;
+- não entram nas métricas comerciais;
+- não contam como Plano Fundador;
+- não contam como Trial.
+
+### Validação real em produção
+
+Foi validado em produção:
+
+- e-mail válido cadastrado;
+- e-mail de confirmação enviado pela Brevo;
+- link de confirmação funcionando;
+- usuário confirmado conseguiu acessar o app;
+- usuário permaneceu salvo após redeploy;
+- `/admin/api/users` continuou registrando corretamente.
+
+### Brevo — template de confirmação
+
+Estado atual:
+
+- template de verificação criado na Brevo com ID operacional configurável;
+- o código lê `process.env.BREVO_TEMPLATE_EMAIL_VERIFICACAO`;
+- não há ID de template hardcoded;
+- o envio usa `templateId` configurável;
+- `params` contém exatamente `LINK_EMAIL`;
+- o assunto vem do template Brevo;
+- `htmlContent` manual foi removido apenas do envio de verificação;
+- se a variável estiver ausente ou inválida, o envio falha de forma segura;
+- nenhum outro template Brevo foi alterado.
+
+Variáveis relevantes:
+
+- `USERS_DATA_PATH`
+- `BREVO_TEMPLATE_EMAIL_VERIFICACAO`
+
+Não registrar no README:
+
+- senhas;
+- tokens reais;
+- hashes reais;
+- `ADMIN_PASSWORD`;
+- `BRAPI_TOKEN`;
+- chaves Brevo;
+- credenciais PagBank;
+- chaves SSH;
+- dados sensíveis de usuários;
+- valores secretos.
+
+### Última suíte informada
+
+- 50 testes aprovados;
+- 0 falhas.
+
+### Pendências funcionais antes do próximo bloco
+
+As tarefas abaixo continuam pendentes e não foram implementadas neste checkpoint:
+
+- persistir tabela comparativa após refresh;
+- registrar pesquisas de FIIs por usuário;
+- adicionar FAQ “O que é um FII?”;
+- centralizar footer da home.
+
 ### Regras antes de novas alterações críticas
 
 Antes de alterações em:
