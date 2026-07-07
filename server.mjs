@@ -605,6 +605,64 @@ async function saveUserComparison(userId, tickers) {
   });
 }
 
+async function readFiiSearchEventsReadOnly() {
+  try {
+    const events = JSON.parse(await readFile(fiiSearchLogFile, "utf8"));
+    return Array.isArray(events) ? events : [];
+  } catch (error) {
+    if (error.code === "ENOENT") return [];
+    throw error;
+  }
+}
+
+async function fiiSearchesSummary() {
+  const events = (await readFiiSearchEventsReadOnly())
+    .map((event) => ({
+      userId: String(event.userId || ""),
+      ticker: normalizeFiiTicker(event.ticker),
+      searchedAt: String(event.searchedAt || ""),
+    }))
+    .filter((event) => event.userId && event.ticker && event.searchedAt);
+  const byTicker = new Map();
+  for (const event of events) {
+    const entry = byTicker.get(event.ticker) || {
+      ticker: event.ticker,
+      total: 0,
+      users: new Set(),
+    };
+    entry.total += 1;
+    entry.users.add(event.userId);
+    byTicker.set(event.ticker, entry);
+  }
+
+  return {
+    ok: true,
+    totalSearches: events.length,
+    uniqueUsers: new Set(events.map((event) => event.userId)).size,
+    topTickers: [...byTicker.values()]
+      .map((entry) => ({
+        ticker: entry.ticker,
+        total: entry.total,
+        uniqueUsers: entry.users.size,
+      }))
+      .sort(
+        (left, right) =>
+          right.total - left.total ||
+          right.uniqueUsers - left.uniqueUsers ||
+          left.ticker.localeCompare(right.ticker),
+      ),
+    recentSearches: events
+      .slice()
+      .sort((left, right) => String(right.searchedAt).localeCompare(String(left.searchedAt)))
+      .slice(0, 50)
+      .map((event) => ({
+        ticker: event.ticker,
+        searchedAt: event.searchedAt,
+        userId: event.userId,
+      })),
+  };
+}
+
 async function readJsonBody(req) {
   const chunks = [];
   let size = 0;
@@ -1885,6 +1943,21 @@ const server = http.createServer(async (req, res) => {
           emailResults: [],
         }));
         return json(res, 200, { ok: true, ...result });
+      }
+
+      if (url.pathname === "/admin/api/fii-searches") {
+        if (req.method !== "GET") {
+          return json(res, 405, { ok: false, error: "Metodo nao permitido." });
+        }
+        try {
+          return json(res, 200, await fiiSearchesSummary());
+        } catch (error) {
+          if (error.internalMessage) logInternalError("Histórico de pesquisas", { message: error.internalMessage });
+          return json(res, 500, {
+            ok: false,
+            error: "Não foi possível consultar o histórico de pesquisas agora.",
+          });
+        }
       }
 
       if (url.pathname === "/admin/api/users" && req.method === "POST") {

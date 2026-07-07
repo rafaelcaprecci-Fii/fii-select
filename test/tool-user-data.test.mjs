@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, unlink, writeFile } from "node:fs/promises";
 import net from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -110,6 +110,8 @@ test("pesquisas e comparação são persistidas por usuário autenticado", async
       USERS_DATA_PATH: usersPath,
       FII_SEARCH_LOG_PATH: searchesPath,
       USER_COMPARISONS_PATH: comparisonsPath,
+      ADMIN_USER: "admin-test",
+      ADMIN_PASSWORD: "password-test",
       BRAPI_TOKEN: "fake-brapi-token",
       NODE_ENV: "test",
       NODE_OPTIONS: `${process.env.NODE_OPTIONS || ""} --import ${preloadPath}`.trim(),
@@ -169,6 +171,68 @@ test("pesquisas e comparação são persistidas por usuário autenticado", async
   );
   assert.ok(searchEvents.every((event) => event.searchedAt));
   assert.ok(searchEvents.every((event) => !("email" in event)));
+
+  await writeFile(
+    searchesPath,
+    JSON.stringify(
+      [
+        {
+          userId: "active-user",
+          ticker: "HGLG11",
+          searchedAt: "2026-07-07T10:00:00.000Z",
+          email: "nao-deve-aparecer@example.com",
+        },
+        {
+          userId: "active-user",
+          ticker: "hglg11",
+          searchedAt: "2026-07-07T10:05:00.000Z",
+        },
+        {
+          userId: "internal-user",
+          ticker: "MXRF11",
+          searchedAt: "2026-07-07T10:10:00.000Z",
+        },
+      ],
+      null,
+      2,
+    ),
+  );
+  const adminAuth = `Basic ${Buffer.from("admin-test:password-test").toString("base64")}`;
+  const unauthenticatedSearches = await fetch(`${baseUrl}/admin/api/fii-searches`);
+  assert.equal(unauthenticatedSearches.status, 401);
+
+  const beforeAdminRead = await readFile(searchesPath, "utf8");
+  const adminSearches = await fetch(`${baseUrl}/admin/api/fii-searches`, {
+    headers: { Authorization: adminAuth },
+  });
+  assert.equal(adminSearches.status, 200);
+  const summary = await adminSearches.json();
+  assert.equal(summary.ok, true);
+  assert.equal(summary.totalSearches, 3);
+  assert.equal(summary.uniqueUsers, 2);
+  assert.deepEqual(summary.topTickers, [
+    { ticker: "HGLG11", total: 2, uniqueUsers: 1 },
+    { ticker: "MXRF11", total: 1, uniqueUsers: 1 },
+  ]);
+  assert.deepEqual(
+    summary.recentSearches.map((event) => event.ticker),
+    ["MXRF11", "HGLG11", "HGLG11"],
+  );
+  assert.doesNotMatch(JSON.stringify(summary), /email|@/i);
+  assert.equal(await readFile(searchesPath, "utf8"), beforeAdminRead);
+
+  await unlink(searchesPath);
+  const emptySearches = await fetch(`${baseUrl}/admin/api/fii-searches`, {
+    headers: { Authorization: adminAuth },
+  });
+  assert.equal(emptySearches.status, 200);
+  assert.deepEqual(await emptySearches.json(), {
+    ok: true,
+    totalSearches: 0,
+    uniqueUsers: 0,
+    topTickers: [],
+    recentSearches: [],
+  });
 
   const saved = await fetch(`${baseUrl}/api/user-comparison`, {
     method: "PATCH",
