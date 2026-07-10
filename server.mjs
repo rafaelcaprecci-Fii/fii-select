@@ -1,7 +1,7 @@
 import http from "node:http";
 import { randomUUID, timingSafeEqual } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { extname, join, normalize } from "node:path";
+import { dirname, extname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
 import { normalizeCrossedReading } from "./lib/crossed-reading.mjs";
 import { createBrapiUsageTracker } from "./lib/brapi-usage.mjs";
@@ -38,6 +38,10 @@ import {
   normalizeFundClassification,
   selectComparableFunds,
 } from "./lib/fund-comparables.mjs";
+import {
+  auditedTestUserCleanupConfirmation,
+  removeAuditedTestUsers,
+} from "./lib/audited-test-user-cleanup.mjs";
 
 const root = fileURLToPath(new URL(".", import.meta.url));
 const publicDir = join(root, "public");
@@ -526,6 +530,18 @@ function withUsers(mutator) {
   });
   usersQueue = run.catch(() => {});
   return run;
+}
+
+async function removeAuditedTestUsersFromStore() {
+  return removeAuditedTestUsers({
+    readUsers,
+    writeUsers: (users) => writeJsonFileAtomic(usersFile, users),
+    createBackup: async (backupName, users) => {
+      const backupPath = join(dirname(usersFile), "backups", backupName);
+      await writeJsonFileAtomic(backupPath, users);
+      return backupPath;
+    },
+  });
 }
 
 function normalizeFiiTicker(value) {
@@ -2059,6 +2075,31 @@ const server = http.createServer(async (req, res) => {
           return json(res, 405, { ok: false, error: "Método não permitido." });
         }
         return json(res, 200, { ok: true, ...brapiUsage.snapshot() });
+      }
+
+      if (url.pathname === "/admin/api/maintenance/remove-test-users") {
+        if (req.method !== "POST") {
+          return json(res, 405, { ok: false, error: "Método não permitido." });
+        }
+        const body = await readJsonBody(req);
+        if (body.confirm !== auditedTestUserCleanupConfirmation) {
+          return json(res, 400, { ok: false, error: "Confirmação inválida. Nenhum usuário foi alterado." });
+        }
+        try {
+          const result = await removeAuditedTestUsersFromStore();
+          return json(res, 200, result);
+        } catch (error) {
+          if (error.rollbackExecuted) {
+            logInternalError("Limpeza controlada de usuários", {
+              message: "Rollback executado após falha de validação pós-escrita.",
+            });
+          }
+          return json(res, 400, {
+            ok: false,
+            error: error.message || "Limpeza abortada. Nenhum usuário foi removido.",
+            rollbackExecuted: Boolean(error.rollbackExecuted),
+          });
+        }
       }
 
       const statusMatch = url.pathname.match(/^\/admin\/api\/users\/([^/]+)\/status$/);
