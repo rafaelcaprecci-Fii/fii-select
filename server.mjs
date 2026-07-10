@@ -31,6 +31,7 @@ import {
   isEmailVerified,
   isInternalAccount,
   normalizeAdministrativeAccountType,
+  normalizeAdministrativeEmail,
   shouldRunCommercialAutomation,
 } from "./lib/user-account-policy.mjs";
 import {
@@ -706,6 +707,18 @@ function publicUser(user) {
         ? user.trialUsed
         : Boolean(user.trialStartAt || user.trialStartedAt),
     internalNotes: user.internalNotes || user.notes || user.observations || "",
+  };
+}
+
+function adminUserEmailLookupResult(user) {
+  return {
+    id: user.id,
+    name: user.name || "",
+    email: user.email || "",
+    accountType: user.accountType || "customer",
+    intent: user.intent || "general",
+    plan: user.plan || "",
+    status: user.status || "",
   };
 }
 
@@ -1943,6 +1956,26 @@ const server = http.createServer(async (req, res) => {
           emailResults: [],
         }));
         return json(res, 200, { ok: true, ...result });
+      }
+
+      if (url.pathname === "/admin/api/users/by-email") {
+        if (req.method !== "GET") {
+          return json(res, 405, { ok: false, error: "Metodo nao permitido." });
+        }
+        const email = normalizeAdministrativeEmail(url.searchParams.get("email") || "");
+        if (!email) {
+          return json(res, 400, { ok: false, error: "Informe um e-mail válido." });
+        }
+        const matches = await withUsers(async (users) =>
+          users
+            .filter((user) => normalizeAdministrativeEmail(user?.email) === email)
+            .map(adminUserEmailLookupResult),
+        );
+        return json(res, 200, {
+          ok: true,
+          count: matches.length,
+          users: matches,
+        });
       }
 
       if (url.pathname === "/admin/api/fii-searches") {

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import net from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -200,4 +200,130 @@ test("login e ferramenta operam em modo fail-closed", async (context) => {
   assert.equal(readFailure.status, 503);
   assert.equal((await readFailure.json()).authenticated, false);
   assert.match(cookieFrom(readFailure), /Max-Age=0/);
+});
+
+test("consulta administrativa por e-mail é exata e somente leitura", async (context) => {
+  const directory = await mkdtemp(join(tmpdir(), "fii-select-admin-email-"));
+  const usersPath = join(directory, "users.json");
+  const users = [
+    {
+      id: "target-user",
+      name: "Usuário Alvo",
+      email: "usuario@dominio.com",
+      accountType: "customer",
+      intent: "founder",
+      plan: "fundador",
+      status: "active",
+      passwordHash: "nao-retornar",
+      emailVerificationTokenHash: "nao-retornar",
+      resetToken: "nao-retornar",
+    },
+    {
+      id: "partial-user",
+      name: "Parcial",
+      email: "outro-usuario@dominio.com",
+      accountType: "customer",
+      intent: "trial",
+      plan: "teste_7_dias",
+      status: "pending_trial",
+    },
+    {
+      id: "duplicate-one",
+      name: "Duplicado um",
+      email: "duplicado@dominio.com",
+      accountType: "customer",
+      intent: "founder",
+      plan: "fundador",
+      status: "pending_founder",
+    },
+    {
+      id: "duplicate-two",
+      name: "Duplicado dois",
+      email: " DUPLICADO@DOMINIO.COM ",
+      accountType: "customer",
+      intent: "trial",
+      plan: "teste_7_dias",
+      status: "trial_active",
+    },
+  ];
+  await writeFile(usersPath, JSON.stringify(users, null, 2));
+
+  const port = await availablePort();
+  const child = spawn(process.execPath, ["server.mjs"], {
+    cwd: root,
+    env: {
+      ...process.env,
+      HOST: "127.0.0.1",
+      PORT: String(port),
+      USERS_DATA_PATH: usersPath,
+      ADMIN_USER: "admin-test",
+      ADMIN_PASSWORD: "password-test",
+      NODE_ENV: "test",
+    },
+    stdio: "ignore",
+  });
+  const baseUrl = `http://127.0.0.1:${port}`;
+  context.after(async () => {
+    child.kill("SIGTERM");
+    await rm(directory, { recursive: true, force: true });
+  });
+  await waitForServer(baseUrl, child);
+
+  const unauthenticated = await fetch(
+    `${baseUrl}/admin/api/users/by-email?email=usuario@dominio.com`,
+  );
+  assert.equal(unauthenticated.status, 401);
+
+  const auth = `Basic ${Buffer.from("admin-test:password-test").toString("base64")}`;
+  const beforeRead = await readFile(usersPath, "utf8");
+  const exact = await fetch(
+    `${baseUrl}/admin/api/users/by-email?email=${encodeURIComponent("  USUARIO@DOMINIO.COM  ")}`,
+    { headers: { Authorization: auth } },
+  );
+  assert.equal(exact.status, 200);
+  assert.deepEqual(await exact.json(), {
+    ok: true,
+    count: 1,
+    users: [
+      {
+        id: "target-user",
+        name: "Usuário Alvo",
+        email: "usuario@dominio.com",
+        accountType: "customer",
+        intent: "founder",
+        plan: "fundador",
+        status: "active",
+      },
+    ],
+  });
+
+  const partial = await fetch(
+    `${baseUrl}/admin/api/users/by-email?email=usuario@dominio`,
+    { headers: { Authorization: auth } },
+  );
+  assert.equal((await partial.json()).count, 0);
+
+  const missing = await fetch(
+    `${baseUrl}/admin/api/users/by-email?email=ausente@dominio.com`,
+    { headers: { Authorization: auth } },
+  );
+  assert.deepEqual(await missing.json(), { ok: true, count: 0, users: [] });
+
+  const duplicate = await fetch(
+    `${baseUrl}/admin/api/users/by-email?email=duplicado@dominio.com`,
+    { headers: { Authorization: auth } },
+  );
+  const duplicateBody = await duplicate.json();
+  assert.equal(duplicateBody.count, 2);
+  assert.deepEqual(
+    duplicateBody.users.map((user) => user.id),
+    ["duplicate-one", "duplicate-two"],
+  );
+
+  const serialized = JSON.stringify({ exact: await (await fetch(
+    `${baseUrl}/admin/api/users/by-email?email=usuario@dominio.com`,
+    { headers: { Authorization: auth } },
+  )).json(), duplicateBody });
+  assert.doesNotMatch(serialized, /password|hash|token|nao-retornar/i);
+  assert.equal(await readFile(usersPath, "utf8"), beforeRead);
 });
