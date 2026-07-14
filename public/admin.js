@@ -251,6 +251,7 @@ function renderCleanupSuccess(result) {
     ["Usuários removidos", String(result.removedCount ?? 0)],
     ["Backup criado", result.backupPath || "Não informado"],
     ["Conta internal preservada", result.preservedUser?.email || "Não informada"],
+    ["Plano Fundador", "cadastros removidos não aparecem mais no Plano Fundador"],
     ["Rollback", result.rollbackExecuted ? "executado" : "não necessário"],
   ];
 

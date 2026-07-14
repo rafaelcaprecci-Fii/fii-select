@@ -170,13 +170,13 @@
           </p>
         </section>
 
-        <section class="admin-maintenance-card" aria-label="Manutenção administrativa">
+        <section class="admin-maintenance-card" aria-label="Manutenção do Plano Fundador">
           <div>
-            <span>Manutenção</span>
-            <h2>Remover usuários de teste auditados</h2>
-            <p>Remove somente os três cadastros de teste previamente autorizados e preserva a conta internal.</p>
+            <span>Manutenção — Plano Fundador</span>
+            <h2>Remover cadastros de teste do Plano Fundador</h2>
+            <p>Remove somente os cadastros de teste previamente auditados que aparecem no Plano Fundador. A operação cria backup antes da exclusão e preserva a conta internal.</p>
           </div>
-          <a class="maintenance-action" href="#limpeza-usuarios-teste">Remover usuários de teste</a>
+          <a class="maintenance-action" href="#limpeza-usuarios-teste">Remover cadastros de teste do Plano Fundador</a>
         </section>
 
         <section class="customer-list-card">
@@ -318,17 +318,17 @@
       </div>
     </section>
 
-    <section class="customer-actions-modal maintenance-cleanup-modal" id="limpeza-usuarios-teste" aria-label="Remover usuários de teste auditados">
+    <section class="customer-actions-modal maintenance-cleanup-modal" id="limpeza-usuarios-teste" aria-label="Remover cadastros de teste do Plano Fundador">
       <a class="modal-backdrop" href="admin.html" aria-label="Fechar limpeza de usuários de teste"></a>
       <div class="actions-card maintenance-card">
         <a class="modal-close-x" href="admin.html">×</a>
-        <h2>Manutenção</h2>
-        <p>Esta operação removerá somente os usuários de teste previamente auditados. Um backup será criado antes da exclusão.</p>
+        <h2>Manutenção — Plano Fundador</h2>
+        <p>Esta operação removerá somente os cadastros de teste previamente auditados que aparecem no Plano Fundador. Um backup será criado antes da exclusão. A conta internal será preservada.</p>
         <label>
-          Digite REMOVE_AUDITED_TEST_USERS para confirmar.
+          Digite exatamente REMOVE_AUDITED_TEST_USERS para confirmar.
           <input type="text" data-cleanup-confirm autocomplete="off" spellcheck="false" />
         </label>
-        <button class="status-disable" type="button" data-cleanup-submit disabled>Remover usuários de teste</button>
+        <button class="status-disable" type="button" data-cleanup-submit disabled>Remover cadastros de teste do Plano Fundador</button>
         <div class="maintenance-result" data-cleanup-result aria-live="polite"></div>
         <a class="actions-close" href="admin.html">Fechar</a>
       </div>
