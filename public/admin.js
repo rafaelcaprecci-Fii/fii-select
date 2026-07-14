@@ -6,8 +6,13 @@ import {
 const tableBody = document.querySelector(".customer-table tbody");
 const manualForm = document.querySelector(".manual-form");
 const actionsModal = document.querySelector("#acoes-cliente");
+const cleanupConfirmInput = document.querySelector("[data-cleanup-confirm]");
+const cleanupSubmitButton = document.querySelector("[data-cleanup-submit]");
+const cleanupResult = document.querySelector("[data-cleanup-result]");
+const cleanupConfirmation = "REMOVE_AUDITED_TEST_USERS";
 let users = [];
 let selectedUserId = "";
+let cleanupExecuted = false;
 
 function escapeHtml(value) {
   return String(value || "")
@@ -223,6 +228,95 @@ function showAdminMessage(message, isError = false) {
   box.style.color = isError ? "#b42318" : "#1f6b44";
 }
 
+function setCleanupResult(message, isError = false) {
+  if (!cleanupResult) return;
+  cleanupResult.replaceChildren();
+  const paragraph = document.createElement("p");
+  paragraph.textContent = message;
+  paragraph.className = isError ? "maintenance-error" : "maintenance-success";
+  cleanupResult.appendChild(paragraph);
+}
+
+function renderCleanupSuccess(result) {
+  if (!cleanupResult) return;
+  cleanupResult.replaceChildren();
+
+  const title = document.createElement("p");
+  title.className = "maintenance-success";
+  title.textContent = "Operação concluída com sucesso";
+  cleanupResult.appendChild(title);
+
+  const list = document.createElement("dl");
+  const rows = [
+    ["Usuários removidos", String(result.removedCount ?? 0)],
+    ["Backup criado", result.backupPath || "Não informado"],
+    ["Conta internal preservada", result.preservedUser?.email || "Não informada"],
+    ["Rollback", result.rollbackExecuted ? "executado" : "não necessário"],
+  ];
+
+  rows.forEach(([label, value]) => {
+    const term = document.createElement("dt");
+    term.textContent = label;
+    const description = document.createElement("dd");
+    description.textContent = value;
+    list.append(term, description);
+  });
+
+  const removedUsers = Array.isArray(result.removedUsers) ? result.removedUsers : [];
+  if (removedUsers.length) {
+    const term = document.createElement("dt");
+    term.textContent = "Registros removidos";
+    const description = document.createElement("dd");
+    const items = document.createElement("ul");
+    removedUsers.forEach((user) => {
+      const item = document.createElement("li");
+      item.textContent = `${user.email || "e-mail não informado"} (${user.id || "ID não informado"})`;
+      items.appendChild(item);
+    });
+    description.appendChild(items);
+    list.append(term, description);
+  }
+
+  cleanupResult.appendChild(list);
+
+  const warning = document.createElement("p");
+  warning.className = "maintenance-warning";
+  warning.textContent = "Não execute novamente.";
+  cleanupResult.appendChild(warning);
+}
+
+function syncCleanupButtonState() {
+  if (!cleanupConfirmInput || !cleanupSubmitButton) return;
+  cleanupSubmitButton.disabled = cleanupExecuted || cleanupConfirmInput.value !== cleanupConfirmation;
+}
+
+async function removeAuditedTestUsers() {
+  if (!cleanupSubmitButton || cleanupSubmitButton.disabled) return;
+
+  cleanupSubmitButton.disabled = true;
+  setCleanupResult("Executando limpeza controlada...");
+
+  try {
+    const response = await fetch("/admin/api/maintenance/remove-test-users", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ confirm: cleanupConfirmation }),
+    });
+    const result = await response.json();
+    if (!response.ok) {
+      throw new Error(result.error || "Falha ao executar limpeza controlada.");
+    }
+
+    cleanupExecuted = true;
+    cleanupConfirmInput.disabled = true;
+    renderCleanupSuccess(result);
+    await loadUsers();
+  } catch (error) {
+    setCleanupResult(error.message || "Falha ao executar limpeza controlada.", true);
+    syncCleanupButtonState();
+  }
+}
+
 function renderUsers() {
   if (!tableBody) return;
   renderKpis();
@@ -377,6 +471,11 @@ actionsModal?.querySelector(".status-whatsapp")?.addEventListener("click", (even
     event.preventDefault();
     showAdminMessage("Este usuário não possui WhatsApp cadastrado.", true);
   }
+});
+
+cleanupConfirmInput?.addEventListener("input", syncCleanupButtonState);
+cleanupSubmitButton?.addEventListener("click", () => {
+  removeAuditedTestUsers().catch((error) => setCleanupResult(error.message, true));
 });
 
 updateAdminCurrentDate();

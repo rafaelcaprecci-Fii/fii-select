@@ -170,6 +170,15 @@
           </p>
         </section>
 
+        <section class="admin-maintenance-card" aria-label="Manutenção administrativa">
+          <div>
+            <span>Manutenção</span>
+            <h2>Remover usuários de teste auditados</h2>
+            <p>Remove somente os três cadastros de teste previamente autorizados e preserva a conta internal.</p>
+          </div>
+          <a class="maintenance-action" href="#limpeza-usuarios-teste">Remover usuários de teste</a>
+        </section>
+
         <section class="customer-list-card">
           <div class="customer-list-head">
             <h2>Lista de clientes</h2>
@@ -305,6 +314,22 @@
           <label>Plano<select><option>Programa Fundadores</option><option>Teste grátis</option></select></label>
           <button class="status-enable" type="submit">Salvar cadastro</button>
         </form>
+        <a class="actions-close" href="admin.html">Fechar</a>
+      </div>
+    </section>
+
+    <section class="customer-actions-modal maintenance-cleanup-modal" id="limpeza-usuarios-teste" aria-label="Remover usuários de teste auditados">
+      <a class="modal-backdrop" href="admin.html" aria-label="Fechar limpeza de usuários de teste"></a>
+      <div class="actions-card maintenance-card">
+        <a class="modal-close-x" href="admin.html">×</a>
+        <h2>Manutenção</h2>
+        <p>Esta operação removerá somente os usuários de teste previamente auditados. Um backup será criado antes da exclusão.</p>
+        <label>
+          Digite REMOVE_AUDITED_TEST_USERS para confirmar.
+          <input type="text" data-cleanup-confirm autocomplete="off" spellcheck="false" />
+        </label>
+        <button class="status-disable" type="button" data-cleanup-submit disabled>Remover usuários de teste</button>
+        <div class="maintenance-result" data-cleanup-result aria-live="polite"></div>
         <a class="actions-close" href="admin.html">Fechar</a>
       </div>
     </section>

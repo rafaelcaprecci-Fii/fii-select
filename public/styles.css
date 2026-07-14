@@ -5949,6 +5949,57 @@ body.admin-dashboard-v2 .founder-capacity.is-limit-reached {
   background: #fff7f7;
 }
 
+body.admin-dashboard-v2 .admin-maintenance-card {
+  display: flex;
+  gap: 24px;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 22px;
+  border: 1px solid #efd4d4;
+  border-left: 4px solid #e83205;
+  border-radius: 8px;
+  padding: 18px 24px;
+  color: #293149;
+  background: #fffafa;
+}
+
+body.admin-dashboard-v2 .admin-maintenance-card span {
+  display: block;
+  margin-bottom: 6px;
+  color: #9f2d2d;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+body.admin-dashboard-v2 .admin-maintenance-card h2 {
+  margin: 0 0 5px;
+  color: #293149;
+  font-size: 20px;
+  font-weight: 800;
+}
+
+body.admin-dashboard-v2 .admin-maintenance-card p {
+  margin: 0;
+  font-size: 14px;
+}
+
+body.admin-dashboard-v2 .maintenance-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 230px;
+  min-height: 40px;
+  border-radius: 4px;
+  padding: 0 18px;
+  color: #fff;
+  background: #e83205;
+  font-size: 13px;
+  font-weight: 800;
+  text-decoration: none;
+  text-transform: uppercase;
+}
+
 body.admin-dashboard-v2 .customer-list-card {
   overflow: hidden;
   border: 1px solid #dde0e7;
@@ -6504,6 +6555,109 @@ body.admin-dashboard-v2 .manual-form button {
   font-size: 14px;
   font-weight: 800;
   text-transform: uppercase;
+}
+
+body.admin-dashboard-v2 .maintenance-card {
+  width: 560px;
+  text-align: left;
+}
+
+body.admin-dashboard-v2 .maintenance-card h2 {
+  text-align: center;
+}
+
+body.admin-dashboard-v2 .maintenance-card > p {
+  margin: -8px 0 22px;
+  color: rgba(0, 0, 0, .70);
+  font-size: 15px;
+  line-height: 1.45;
+  text-align: center;
+}
+
+body.admin-dashboard-v2 .maintenance-card label {
+  display: grid;
+  gap: 8px;
+  color: #111827;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+body.admin-dashboard-v2 .maintenance-card input {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid #d7d7d2;
+  border-radius: 8px;
+  padding: 0 12px;
+  color: rgba(0, 0, 0, .70);
+  background: #fff;
+  font: inherit;
+}
+
+body.admin-dashboard-v2 .maintenance-card > button {
+  width: 100%;
+  min-height: 40px;
+  margin: 16px 0 0;
+  border: 0;
+  border-radius: 4px;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+body.admin-dashboard-v2 .maintenance-card > button:disabled {
+  cursor: not-allowed;
+  filter: grayscale(.65);
+  opacity: .45;
+}
+
+body.admin-dashboard-v2 .maintenance-result {
+  margin-top: 18px;
+  color: rgba(0, 0, 0, .72);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+body.admin-dashboard-v2 .maintenance-result p {
+  margin: 0 0 10px;
+}
+
+body.admin-dashboard-v2 .maintenance-success {
+  color: #1f6b44;
+  font-weight: 800;
+}
+
+body.admin-dashboard-v2 .maintenance-error {
+  color: #b42318;
+  font-weight: 800;
+}
+
+body.admin-dashboard-v2 .maintenance-warning {
+  color: #9f2d2d;
+  font-weight: 800;
+}
+
+body.admin-dashboard-v2 .maintenance-result dl {
+  display: grid;
+  grid-template-columns: 160px minmax(0, 1fr);
+  gap: 8px 14px;
+  margin: 0;
+}
+
+body.admin-dashboard-v2 .maintenance-result dt {
+  color: #111827;
+  font-weight: 800;
+}
+
+body.admin-dashboard-v2 .maintenance-result dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+body.admin-dashboard-v2 .maintenance-result ul {
+  margin: 0;
+  padding-left: 18px;
 }
 
 /* Ajuste fino do Customer - Ver Detalhes */
