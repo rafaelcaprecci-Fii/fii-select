@@ -86,11 +86,32 @@ test("pesquisas e comparação são persistidas por usuário autenticado", async
       "  if (href.includes('api.bcb.gov.br')) {",
       "    return Response.json([{ valor: '10.50', data: '07/07/2026' }]);",
       "  }",
-      "  if (href.includes('brapi.dev/api/v2/fii/indicators') && href.includes('MXRF11')) {",
+      "  if (href.includes('brapi.dev/api/v2/fii/indicators') && href.includes('APIF11')) {",
       "    return new Response('falha simulada', { status: 500 });",
+      "  }",
+      "  if (href.includes('brapi.dev/api/v2/fii/indicators') && href.includes('XXXX11')) {",
+      "    return Response.json({ fiis: [] });",
+      "  }",
+      "  if (href.includes('brapi.dev/api/v2/fii/indicators') && href.includes('NAVN11')) {",
+      "    return Response.json({ fiis: [{ symbol: 'NAVN11', name: 'Sem Patrimonio', price: 100, segmentType: 'tijolo', segmentoAtuacao: 'Logística' }] });",
+      "  }",
+      "  if (href.includes('brapi.dev/api/v2/fii/indicators') && href.includes('SEMD11')) {",
+      "    return Response.json({ fiis: [{ symbol: 'SEMD11', name: 'Sem Dividendos', price: 100, navPerShare: 100, priceToNav: 1, segmentType: 'tijolo', segmentoAtuacao: 'Logística' }] });",
+      "  }",
+      "  if (href.includes('brapi.dev/api/v2/fii/indicators') && href.includes('FAGR11')) {",
+      "    return Response.json({ fiis: [{ symbol: 'FAGR11', name: 'Fiagro Teste', price: 100, navPerShare: 100, priceToNav: 1, segmentType: 'fiagro', segmentoAtuacao: 'Agronegócio' }] });",
       "  }",
       "  if (href.includes('brapi.dev/api/v2/fii/indicators')) {",
       "    return Response.json({ fiis: [{ symbol: 'HGLG11', name: 'Pátria Log', price: 160, navPerShare: 155, priceToNav: 1.03, segmentType: 'tijolo', segmentoAtuacao: 'Logística' }] });",
+      "  }",
+      "  if (href.includes('brapi.dev/api/v2/fii/dividends') && href.includes('SEMD11')) {",
+      "    return Response.json({ dividends: [] });",
+      "  }",
+      "  if (href.includes('brapi.dev/api/v2/fii/dividends') && href.includes('NAVN11')) {",
+      "    return Response.json({ dividends: dividends.map((item) => ({ ...item, symbol: 'NAVN11' })) });",
+      "  }",
+      "  if (href.includes('brapi.dev/api/v2/fii/dividends') && href.includes('FAGR11')) {",
+      "    return Response.json({ dividends: dividends.map((item) => ({ ...item, symbol: 'FAGR11' })) });",
       "  }",
       "  if (href.includes('brapi.dev/api/v2/fii/dividends')) {",
       "    return Response.json({ dividends });",
@@ -139,11 +160,55 @@ test("pesquisas e comparação são persistidas por usuário autenticado", async
     headers: { Cookie: activeCookie },
   });
   assert.equal(invalidSearch.status, 400);
+  assert.deepEqual(await invalidSearch.json(), {
+    error: "Ticker inválido. Verifique o código do FII e tente novamente.",
+    code: "invalid_ticker",
+  });
 
-  const failedSearch = await fetch(`${baseUrl}/api/valuation?ticker=MXRF11`, {
+  const missingSearch = await fetch(`${baseUrl}/api/valuation?ticker=XXXX11`, {
     headers: { Cookie: activeCookie },
   });
-  assert.equal(failedSearch.status, 400);
+  assert.equal(missingSearch.status, 400);
+  assert.deepEqual(await missingSearch.json(), {
+    error: "Não encontramos dados para este ticker.",
+    code: "ticker_not_found",
+  });
+
+  const noDividendsSearch = await fetch(`${baseUrl}/api/valuation?ticker=SEMD11`, {
+    headers: { Cookie: activeCookie },
+  });
+  assert.equal(noDividendsSearch.status, 400);
+  assert.deepEqual(await noDividendsSearch.json(), {
+    error: "Ainda não há dados suficientes para calcular a estimativa deste FII.",
+    code: "insufficient_data",
+  });
+
+  const noPatrimonySearch = await fetch(`${baseUrl}/api/valuation?ticker=NAVN11`, {
+    headers: { Cookie: activeCookie },
+  });
+  assert.equal(noPatrimonySearch.status, 400);
+  assert.deepEqual(await noPatrimonySearch.json(), {
+    error: "Ainda não há dados suficientes para calcular a estimativa deste FII.",
+    code: "insufficient_data",
+  });
+
+  const apiFailureSearch = await fetch(`${baseUrl}/api/valuation?ticker=APIF11`, {
+    headers: { Cookie: activeCookie },
+  });
+  assert.equal(apiFailureSearch.status, 400);
+  assert.deepEqual(await apiFailureSearch.json(), {
+    error: "Não conseguimos consultar os dados deste FII agora. Tente novamente em alguns instantes.",
+    code: "api_unavailable",
+  });
+
+  const unsupportedTypeSearch = await fetch(`${baseUrl}/api/valuation?ticker=FAGR11`, {
+    headers: { Cookie: activeCookie },
+  });
+  assert.equal(unsupportedTypeSearch.status, 400);
+  assert.deepEqual(await unsupportedTypeSearch.json(), {
+    error: "Este tipo de fundo ainda está em evolução na metodologia do FII Select.",
+    code: "unsupported_type",
+  });
 
   const internalSearch = await fetch(`${baseUrl}/api/valuation?ticker=HGLG11`, {
     headers: { Cookie: internalCookie },

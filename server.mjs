@@ -367,6 +367,27 @@ function publicDataError() {
   return "Não foi possível consultar os dados no momento. Tente novamente em instantes.";
 }
 
+const valuationErrorMessages = {
+  invalid_ticker: "Ticker inválido. Verifique o código do FII e tente novamente.",
+  ticker_not_found: "Não encontramos dados para este ticker.",
+  insufficient_data: "Ainda não há dados suficientes para calcular a estimativa deste FII.",
+  api_unavailable: "Não conseguimos consultar os dados deste FII agora. Tente novamente em alguns instantes.",
+  unsupported_type: "Este tipo de fundo ainda está em evolução na metodologia do FII Select.",
+  calculation_error: "Não foi possível calcular a estimativa deste FII no momento.",
+};
+
+function valuationError(code, { status = 400, internalMessage = "" } = {}) {
+  const error = new Error(valuationErrorMessages[code] || valuationErrorMessages.calculation_error);
+  error.publicCode = code;
+  error.status = status;
+  if (internalMessage) error.internalMessage = internalMessage;
+  return error;
+}
+
+function isValuationError(error) {
+  return Boolean(error?.publicCode && valuationErrorMessages[error.publicCode]);
+}
+
 function brevoTemplateParams(user) {
   const name = nonEmptyString(user.name, "Investidor");
   const email = nonEmptyString(user.email);
@@ -1255,32 +1276,55 @@ async function getSelic() {
 
 async function getFiiData(ticker, internalEndpoint = "/api/valuation") {
   if (!brapiToken && !sandboxTickers.has(ticker)) {
-    throw new Error(
-      "Modo demonstracao: use MXRF11 ou HGLG11. Para consultar outros fundos, configure BRAPI_TOKEN.",
-    );
+    throw valuationError("api_unavailable", {
+      internalMessage: `BRAPI_TOKEN ausente para ${ticker} fora do sandbox.`,
+    });
   }
 
   return cached(`fii:${ticker}`, 15 * 60 * 1000, async () => {
-    const [indicatorsPayload, dividendsPayload] = await Promise.all([
-      upstream(
-        `https://brapi.dev/api/v2/fii/indicators?symbols=${encodeURIComponent(ticker)}`,
-        { internalEndpoint, ticker },
-      ),
-      upstream(
-        `https://brapi.dev/api/v2/fii/dividends?symbols=${encodeURIComponent(ticker)}&sortOrder=desc`,
-        { internalEndpoint, ticker },
-      ),
-    ]);
+    let indicatorsPayload;
+    let dividendsPayload;
+    try {
+      [indicatorsPayload, dividendsPayload] = await Promise.all([
+        upstream(
+          `https://brapi.dev/api/v2/fii/indicators?symbols=${encodeURIComponent(ticker)}`,
+          { internalEndpoint, ticker },
+        ),
+        upstream(
+          `https://brapi.dev/api/v2/fii/dividends?symbols=${encodeURIComponent(ticker)}&sortOrder=desc`,
+          { internalEndpoint, ticker },
+        ),
+      ]);
+    } catch (error) {
+      throw valuationError("api_unavailable", {
+        internalMessage: error.internalMessage || `Falha ao consultar dados da BRAPI para ${ticker}.`,
+      });
+    }
 
     const indicators = indicatorsPayload.fiis?.[0];
-    if (!indicators) throw new Error("Ticker nao encontrado na fonte de dados.");
+    if (!indicators) throw valuationError("ticker_not_found");
+    const classification = normalizeFundClassification(
+      {
+        ticker,
+        segmentType: indicators.segmentType,
+        segmentoAtuacao: indicators.segmentoAtuacao,
+      },
+      fiiCatalog,
+    );
+    if (classification.type === "fiagro") {
+      throw valuationError("unsupported_type", {
+        internalMessage: `Tipo de fundo ainda não suportado na estimativa: ${ticker} (${classification.label}).`,
+      });
+    }
 
     const dividends = (dividendsPayload.dividends || [])
       .filter((item) => item.symbol === ticker && item.label === "RENDIMENTO")
       .slice(0, 12);
 
     if (dividends.length < 6) {
-      throw new Error("Historico insuficiente de rendimentos para calcular uma media confiavel.");
+      throw valuationError("insufficient_data", {
+        internalMessage: `Histórico insuficiente de rendimentos para ${ticker}: ${dividends.length} registro(s).`,
+      });
     }
 
     return { indicators, dividends };
@@ -1697,7 +1741,7 @@ async function crossedReading(ticker) {
 async function valuation(url, internalEndpoint = "/api/valuation") {
   const ticker = (url.searchParams.get("ticker") || "MXRF11").trim().toUpperCase();
   if (!/^[A-Z]{4}[0-9]{2}$/.test(ticker)) {
-    throw new Error("Informe um ticker de FII no formato MXRF11.");
+    throw valuationError("invalid_ticker");
   }
 
   const riskRate = numberParam(url, "riskRate", 0.025, 0, 0.3);
@@ -1713,6 +1757,11 @@ async function valuation(url, internalEndpoint = "/api/valuation") {
 
   const averageMonthlyDividend =
     dividends.reduce((sum, item) => sum + Number(item.rate || 0), 0) / dividends.length;
+  if (!Number.isFinite(averageMonthlyDividend) || averageMonthlyDividend <= 0) {
+    throw valuationError("insufficient_data", {
+      internalMessage: `Dividendos inválidos para ${ticker}.`,
+    });
+  }
   const dividendVariance =
     dividends.reduce((sum, item) => sum + (Number(item.rate || 0) - averageMonthlyDividend) ** 2, 0) /
     dividends.length;
@@ -1732,6 +1781,16 @@ async function valuation(url, internalEndpoint = "/api/valuation") {
   const currentPrice = Number(indicators.price);
   const navPerShare = Number(indicators.navPerShare);
   const priceToNav = Number(indicators.priceToNav);
+  if (
+    !Number.isFinite(fairValue) ||
+    !Number.isFinite(currentPrice) ||
+    !Number.isFinite(navPerShare) ||
+    !Number.isFinite(priceToNav)
+  ) {
+    throw valuationError("insufficient_data", {
+      internalMessage: `Preço ou dados patrimoniais insuficientes para ${ticker}.`,
+    });
+  }
   const premiumDiscount = currentPrice / fairValue - 1;
   const reading =
     premiumDiscount < -0.05
@@ -2324,8 +2383,18 @@ const server = http.createServer(async (req, res) => {
         }
         return json(res, 200, await comparison(url));
       } catch (error) {
-        if (error.internalMessage) logInternalError(`BRAPI ${url.pathname}`, { message: error.internalMessage });
-        return json(res, 400, { error: error.message || publicDataError() });
+        if (error.internalMessage) {
+          logInternalError(`BRAPI ${url.pathname}`, { message: error.internalMessage });
+        } else if (url.pathname === "/api/valuation" && !isValuationError(error)) {
+          logInternalError("Valuation inesperado", {
+            message: `Erro interno ao calcular estimativa em ${new Date().toISOString()}.`,
+          });
+        }
+        const status = Number.isInteger(error.status) ? error.status : 400;
+        const message = url.pathname === "/api/valuation" && !isValuationError(error)
+          ? valuationErrorMessages.calculation_error
+          : error.message || publicDataError();
+        return json(res, status, { error: message, code: error.publicCode || "unexpected_error" });
       }
     }
     if (url.pathname === "/api/demo-video" && req.method === "POST") {

@@ -324,9 +324,9 @@ async function refreshComparison() {
       result.source === "sandbox"
         ? "Alguns fundos podem ter dados detalhados indisponíveis na base estruturada."
         : "Tabela atualizada com dados de mercado estruturados.";
-  } catch {
+  } catch (caughtError) {
     document.querySelector("#comparison-note").textContent =
-      "Não foi possível atualizar a comparação no momento. Tente novamente em instantes.";
+      caughtError.message || "Não foi possível atualizar a comparação no momento. Tente novamente em instantes.";
   }
 }
 
@@ -378,9 +378,9 @@ async function submit(event) {
       segmentoAtuacao: result.fund.segmentoAtuacao,
       classification: result.fund.classification,
     });
-  } catch {
+  } catch (caughtError) {
     error.textContent =
-      "Não foi possível atualizar a estimativa no momento. Tente novamente em instantes.";
+      caughtError.message || "Não foi possível calcular a estimativa deste FII no momento.";
   } finally {
     button.disabled = false;
     button.textContent = "Atualizar estimativa";
