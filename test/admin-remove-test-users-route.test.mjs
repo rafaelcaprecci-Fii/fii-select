@@ -55,18 +55,18 @@ function cleanupUsers() {
       passwordHash: "nao-retornar",
     },
     {
-      id: "remove-2",
-      name: "Teste Dois",
-      email: auditedTestUserEmails[1],
+      id: "keep-old-1",
+      name: "Teste Dois preservado",
+      email: "11111111@gmail.com",
       accountType: "customer",
       intent: "founder",
       plan: "fundador",
       status: "pending_founder",
     },
     {
-      id: "remove-3",
-      name: "Teste Três",
-      email: auditedTestUserEmails[2],
+      id: "keep-old-2",
+      name: "Teste Três preservado",
+      email: "rafael.curycaprecci2@gmail.com",
       accountType: "customer",
       intent: "trial",
       plan: "teste_7_dias",
@@ -126,7 +126,7 @@ test("rota administrativa remove somente cadastros auditados com confirmação e
   const unauthenticated = await fetch(route, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ confirm: "REMOVE_AUDITED_TEST_USERS" }),
+    body: JSON.stringify({ confirm: "REMOVE_RAF_TEST_USER" }),
   });
   assert.equal(unauthenticated.status, 401);
 
@@ -148,15 +148,15 @@ test("rota administrativa remove somente cadastros auditados com confirmação e
       Authorization: authHeader(),
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ confirm: "REMOVE_AUDITED_TEST_USERS" }),
+    body: JSON.stringify({ confirm: "REMOVE_RAF_TEST_USER" }),
   });
   assert.equal(cleanup.status, 200);
   const cleanupBody = await cleanup.json();
   assert.equal(cleanupBody.ok, true);
-  assert.equal(cleanupBody.removedCount, 3);
+  assert.equal(cleanupBody.removedCount, 1);
   assert.deepEqual(
     cleanupBody.removedUsers.map((user) => user.id),
-    ["remove-1", "remove-2", "remove-3"],
+    ["remove-1"],
   );
   assert.equal(cleanupBody.preservedUser.id, "internal-preserved");
   assert.equal(cleanupBody.preservedUser.accountType, "internal");
@@ -170,9 +170,9 @@ test("rota administrativa remove somente cadastros auditados com confirmação e
   const remainingUsers = await readUsers(usersPath);
   assert.deepEqual(
     remainingUsers.map((user) => user.id),
-    ["internal-preserved", "keep-1"],
+    ["keep-old-1", "keep-old-2", "internal-preserved", "keep-1"],
   );
-  assert.deepEqual(remainingUsers, [originalUsers[3], originalUsers[4]]);
+  assert.deepEqual(remainingUsers, [originalUsers[1], originalUsers[2], originalUsers[3], originalUsers[4]]);
 
   const secondRun = await fetch(route, {
     method: "POST",
@@ -180,7 +180,7 @@ test("rota administrativa remove somente cadastros auditados com confirmação e
       Authorization: authHeader(),
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ confirm: "REMOVE_AUDITED_TEST_USERS" }),
+    body: JSON.stringify({ confirm: "REMOVE_RAF_TEST_USER" }),
   });
   assert.equal(secondRun.status, 400);
   assert.deepEqual(await readUsers(usersPath), remainingUsers);

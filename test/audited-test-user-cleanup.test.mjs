@@ -18,8 +18,8 @@ const preservedInternal = {
 function cleanupUsers(overrides = {}) {
   return [
     { id: "remove-1", email: auditedTestUserEmails[0], accountType: "customer", status: "pending" },
-    { id: "remove-2", email: auditedTestUserEmails[1], accountType: "customer", status: "pending" },
-    { id: "remove-3", email: auditedTestUserEmails[2], accountType: "customer", status: "pending" },
+    { id: "keep-old-1", email: "11111111@gmail.com", accountType: "customer", status: "pending" },
+    { id: "keep-old-2", email: "rafael.curycaprecci2@gmail.com", accountType: "customer", status: "pending" },
     preservedInternal,
     { id: "keep-1", email: "cliente@exemplo.com", accountType: "customer", status: "active" },
   ].map((user) => ({ ...user, ...(overrides[user.id] || {}) }));
@@ -42,7 +42,7 @@ function memoryStore(initialUsers) {
   };
 }
 
-test("limpeza auditada remove somente usuários autorizados e preserva demais registros", async () => {
+test("limpeza auditada remove somente o cadastro autorizado e preserva demais registros", async () => {
   const originalUsers = cleanupUsers();
   const store = memoryStore(originalUsers);
   const result = await removeAuditedTestUsers({
@@ -50,7 +50,7 @@ test("limpeza auditada remove somente usuários autorizados e preserva demais re
     now: new Date("2026-07-10T12:34:56.000Z"),
   });
 
-  assert.equal(result.removedCount, 3);
+  assert.equal(result.removedCount, 1);
   assert.deepEqual(result.removedUsers.map((user) => user.email), auditedTestUserEmails);
   assert.equal(result.preservedUser.email, "rafael.cury@2bold.com");
   assert.equal(result.preservedUser.accountType, "internal");
@@ -61,9 +61,9 @@ test("limpeza auditada remove somente usuários autorizados e preserva demais re
   const remainingUsers = store.snapshot();
   assert.deepEqual(
     remainingUsers.map((user) => user.id),
-    ["internal-preserved", "keep-1"],
+    ["keep-old-1", "keep-old-2", "internal-preserved", "keep-1"],
   );
-  assert.deepEqual(remainingUsers, [preservedInternal, originalUsers[4]]);
+  assert.deepEqual(remainingUsers, [originalUsers[1], originalUsers[2], preservedInternal, originalUsers[4]]);
 });
 
 test("limpeza auditada aborta sem escrever quando alvo falta, duplica ou é internal", async () => {

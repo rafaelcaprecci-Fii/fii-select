@@ -9,7 +9,7 @@ const actionsModal = document.querySelector("#acoes-cliente");
 const cleanupConfirmInput = document.querySelector("[data-cleanup-confirm]");
 const cleanupSubmitButton = document.querySelector("[data-cleanup-submit]");
 const cleanupResult = document.querySelector("[data-cleanup-result]");
-const cleanupConfirmation = "REMOVE_AUDITED_TEST_USERS";
+const cleanupConfirmation = "REMOVE_RAF_TEST_USER";
 let users = [];
 let selectedUserId = "";
 let cleanupExecuted = false;
@@ -248,10 +248,10 @@ function renderCleanupSuccess(result) {
 
   const list = document.createElement("dl");
   const rows = [
-    ["Usuários removidos", String(result.removedCount ?? 0)],
+    ["Cadastros removidos", String(result.removedCount ?? 0)],
     ["Backup criado", result.backupPath || "Não informado"],
     ["Conta internal preservada", result.preservedUser?.email || "Não informada"],
-    ["Plano Fundador", "cadastros removidos não aparecem mais no Plano Fundador"],
+    ["Validação", "cadastro de teste removido da base persistida"],
     ["Rollback", result.rollbackExecuted ? "executado" : "não necessário"],
   ];
 

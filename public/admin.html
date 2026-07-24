@@ -170,13 +170,13 @@
           </p>
         </section>
 
-        <section class="admin-maintenance-card" aria-label="Manutenção do Plano Fundador">
+        <section class="admin-maintenance-card" aria-label="Manutenção para remover cadastro de teste">
           <div>
-            <span>Manutenção — Plano Fundador</span>
-            <h2>Remover cadastros de teste do Plano Fundador</h2>
-            <p>Remove somente os cadastros de teste previamente auditados que aparecem no Plano Fundador. A operação cria backup antes da exclusão e preserva a conta internal.</p>
+            <span>Manutenção — Remover cadastro de teste</span>
+            <h2>Remover cadastro de teste</h2>
+            <p>Remove somente o cadastro de teste previamente auditado: rafael.curycaprecci@gmail.com. A conta internal será preservada.</p>
           </div>
-          <a class="maintenance-action" href="#limpeza-usuarios-teste">Remover cadastros de teste do Plano Fundador</a>
+          <a class="maintenance-action" href="#limpeza-usuarios-teste">Remover cadastro de teste</a>
         </section>
 
         <section class="customer-list-card">
@@ -318,17 +318,17 @@
       </div>
     </section>
 
-    <section class="customer-actions-modal maintenance-cleanup-modal" id="limpeza-usuarios-teste" aria-label="Remover cadastros de teste do Plano Fundador">
+    <section class="customer-actions-modal maintenance-cleanup-modal" id="limpeza-usuarios-teste" aria-label="Remover cadastro de teste auditado">
       <a class="modal-backdrop" href="admin.html" aria-label="Fechar limpeza de usuários de teste"></a>
       <div class="actions-card maintenance-card">
         <a class="modal-close-x" href="admin.html">×</a>
-        <h2>Manutenção — Plano Fundador</h2>
-        <p>Esta operação removerá somente os cadastros de teste previamente auditados que aparecem no Plano Fundador. Um backup será criado antes da exclusão. A conta internal será preservada.</p>
+        <h2>Manutenção — Remover cadastro de teste</h2>
+        <p>Esta operação removerá somente o cadastro de teste previamente auditado: rafael.curycaprecci@gmail.com. Um backup será criado antes da exclusão. A conta internal será preservada.</p>
         <label>
-          Digite exatamente REMOVE_AUDITED_TEST_USERS para confirmar.
+          Digite exatamente REMOVE_RAF_TEST_USER para confirmar.
           <input type="text" data-cleanup-confirm autocomplete="off" spellcheck="false" />
         </label>
-        <button class="status-disable" type="button" data-cleanup-submit disabled>Remover cadastros de teste do Plano Fundador</button>
+        <button class="status-disable" type="button" data-cleanup-submit disabled>Remover cadastro de teste</button>
         <div class="maintenance-result" data-cleanup-result aria-live="polite"></div>
         <a class="actions-close" href="admin.html">Fechar</a>
       </div>
