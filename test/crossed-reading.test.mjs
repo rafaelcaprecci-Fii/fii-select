@@ -22,6 +22,7 @@ function baseData({
       priceToNav: 0.91,
       equity: 1_000,
       totalAssets: 1_250,
+      totalInvestors: 1234567,
     },
     cadastral: {
       symbol: ticker,
@@ -88,7 +89,22 @@ test("JSRE11 é normalizado como tijolo e limita os principais imóveis", () => 
   assert.equal(normalized.typeSpecific.brick.vacancyStatus, "available");
   assert.equal(normalized.common.leverage, 0.25);
   assert.equal(normalized.common.liabilitiesToAssets, 0.2);
+  assert.equal(normalized.common.totalInvestors, 1234567);
   assert.equal("cdi" in normalized.common, false);
+});
+
+test("número de cotistas ausente ou inválido não entra na leitura cruzada", () => {
+  const data = baseData({
+    ticker: "HGLG11",
+    segmentType: "tijolo",
+    segmentoAtuacao: "Logística",
+    properties: brickProperties(1),
+  });
+  data.patrimonial.totalInvestors = 0;
+
+  const normalized = normalizeCrossedReading({ ticker: "HGLG11", data });
+
+  assert.equal(normalized.common.totalInvestors, null);
 });
 
 test("HGLG11 é normalizado como tijolo com área declarada e vacância", () => {

@@ -1781,6 +1781,7 @@ async function valuation(url, internalEndpoint = "/api/valuation") {
   const currentPrice = Number(indicators.price);
   const navPerShare = Number(indicators.navPerShare);
   const priceToNav = Number(indicators.priceToNav);
+  const totalInvestors = Number(indicators.totalInvestors);
   if (
     !Number.isFinite(fairValue) ||
     !Number.isFinite(currentPrice) ||
@@ -1820,6 +1821,10 @@ async function valuation(url, internalEndpoint = "/api/valuation") {
       currentPrice: round(currentPrice),
       navPerShare: round(navPerShare),
       priceToNav: round(priceToNav, 4),
+      totalInvestors:
+        Number.isFinite(totalInvestors) && totalInvestors > 0
+          ? Math.trunc(totalInvestors)
+          : null,
       patrimonialReading,
       dataAsOfDate: indicators.asOfDate,
       classification: normalizeFundClassification(

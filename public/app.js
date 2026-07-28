@@ -13,6 +13,8 @@ const money = (value) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
 const percent = (value, digits = 2) =>
   new Intl.NumberFormat("pt-BR", { style: "percent", minimumFractionDigits: digits }).format(value);
+const integer = (value) =>
+  new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 }).format(value);
 
 function bindRange(inputId, outputId, transform = (value) => value / 100) {
   const input = document.querySelector(inputId);
@@ -58,6 +60,12 @@ function optionalPercent(value) {
   return Number.isFinite(Number(value)) ? percent(Number(value)) : "";
 }
 
+function optionalInvestors(value) {
+  if (value === null || value === undefined || value === "") return "";
+  const number = Number(value);
+  return Number.isFinite(number) && number > 0 ? `${integer(Math.trunc(number))} cotistas` : "";
+}
+
 function crossedFact(label, value) {
   if (value === "" || value === null || value === undefined) return "";
   return `<article><small>${escapeHtml(label)}</small><strong>${escapeHtml(value)}</strong></article>`;
@@ -90,6 +98,7 @@ function renderCrossedReading(result, fallbackFund = {}) {
     ),
     crossedFact("Alavancagem", optionalPercent(common.leverage)),
     crossedFact("Passivos / ativos", optionalPercent(common.liabilitiesToAssets)),
+    crossedFact("Número de cotistas", optionalInvestors(common.totalInvestors)),
     crossedFact(
       "Histórico de rendimentos",
       Array.isArray(common.dividendHistory) && common.dividendHistory.length

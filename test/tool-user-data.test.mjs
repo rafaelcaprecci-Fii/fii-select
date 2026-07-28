@@ -102,7 +102,7 @@ test("pesquisas e comparação são persistidas por usuário autenticado", async
       "    return Response.json({ fiis: [{ symbol: 'FAGR11', name: 'Fiagro Teste', price: 100, navPerShare: 100, priceToNav: 1, segmentType: 'fiagro', segmentoAtuacao: 'Agronegócio' }] });",
       "  }",
       "  if (href.includes('brapi.dev/api/v2/fii/indicators')) {",
-      "    return Response.json({ fiis: [{ symbol: 'HGLG11', name: 'Pátria Log', price: 160, navPerShare: 155, priceToNav: 1.03, segmentType: 'tijolo', segmentoAtuacao: 'Logística' }] });",
+      "    return Response.json({ fiis: [{ symbol: 'HGLG11', name: 'Pátria Log', price: 160, navPerShare: 155, priceToNav: 1.03, totalInvestors: 587366, segmentType: 'tijolo', segmentoAtuacao: 'Logística' }] });",
       "  }",
       "  if (href.includes('brapi.dev/api/v2/fii/dividends') && href.includes('SEMD11')) {",
       "    return Response.json({ dividends: [] });",
@@ -155,6 +155,7 @@ test("pesquisas e comparação são persistidas por usuário autenticado", async
     headers: { Cookie: activeCookie },
   });
   assert.equal(validSearch.status, 200);
+  assert.equal((await validSearch.json()).fund.totalInvestors, 587366);
 
   const invalidSearch = await fetch(`${baseUrl}/api/valuation?ticker=abc`, {
     headers: { Cookie: activeCookie },
