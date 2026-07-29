@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FII Select | Laboratório documental</title>
+    <link rel="stylesheet" href="/styles.css" />
+    <style>
+      .documental-lab-page {
+        min-height: 100vh;
+        padding: 32px;
+        background: #f4f6f8;
+        color: #0f2638;
+      }
+
+      .documental-lab-shell {
+        width: min(1180px, 100%);
+        margin: 0 auto;
+      }
+
+      .documental-lab-header,
+      .documental-lab-panel,
+      .documental-lab-card {
+        background: #fff;
+        border: 1px solid rgba(15, 38, 56, 0.1);
+        border-radius: 18px;
+        box-shadow: 0 18px 40px rgba(15, 38, 56, 0.08);
+      }
+
+      .documental-lab-header {
+        display: flex;
+        justify-content: space-between;
+        gap: 24px;
+        align-items: center;
+        padding: 24px;
+        margin-bottom: 20px;
+      }
+
+      .documental-lab-header h1,
+      .documental-lab-header p {
+        margin: 0;
+      }
+
+      .documental-lab-header p {
+        max-width: 680px;
+        color: #587080;
+      }
+
+      .documental-lab-form {
+        display: flex;
+        gap: 12px;
+        align-items: end;
+      }
+
+      .documental-lab-form label {
+        display: grid;
+        gap: 6px;
+        font-weight: 700;
+      }
+
+      .documental-lab-form input {
+        min-width: 160px;
+        padding: 12px 14px;
+        border: 1px solid rgba(15, 38, 56, 0.2);
+        border-radius: 12px;
+      }
+
+      .documental-lab-form button {
+        padding: 13px 18px;
+        border: 0;
+        border-radius: 12px;
+        background: #c9a45c;
+        color: #0f2638;
+        font-weight: 800;
+        cursor: pointer;
+      }
+
+      .documental-lab-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 20px;
+      }
+
+      .documental-lab-panel {
+        padding: 22px;
+      }
+
+      .documental-lab-panel.is-wide {
+        grid-column: 1 / -1;
+      }
+
+      .documental-lab-panel h2 {
+        margin: 0 0 16px;
+        font-size: 20px;
+      }
+
+      .documental-lab-facts {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .documental-lab-card {
+        padding: 14px;
+        box-shadow: none;
+      }
+
+      .documental-lab-card small {
+        display: block;
+        color: #6b7d89;
+      }
+
+      .documental-lab-card strong {
+        display: block;
+        margin: 5px 0;
+        font-size: 18px;
+      }
+
+      .documental-lab-card span,
+      .documental-lab-list li {
+        color: #587080;
+        font-size: 13px;
+      }
+
+      .documental-lab-list {
+        display: grid;
+        gap: 12px;
+        padding: 0;
+        margin: 0;
+        list-style: none;
+      }
+
+      .documental-lab-status {
+        display: inline-flex;
+        padding: 4px 10px;
+        border-radius: 999px;
+        background: #eef2f5;
+        color: #587080;
+        font-size: 12px;
+        font-weight: 800;
+        text-transform: uppercase;
+      }
+
+      .documental-lab-status.is-attention {
+        background: #fff3d6;
+        color: #8a6100;
+      }
+
+      .documental-lab-status.is-ok {
+        background: #e6f4ec;
+        color: #137242;
+      }
+
+      .documental-lab-message {
+        margin: 12px 0 0;
+        color: #587080;
+      }
+
+      @media (max-width: 900px) {
+        .documental-lab-page {
+          padding: 18px;
+        }
+
+        .documental-lab-header,
+        .documental-lab-form {
+          display: grid;
+        }
+
+        .documental-lab-grid,
+        .documental-lab-facts {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body class="documental-lab-page">
+    <main class="documental-lab-shell">
+      <header class="documental-lab-header">
+        <div>
+          <p class="eyebrow">Admin • área teste</p>
+          <h1>Laboratório documental</h1>
+          <p>
+            Consulta interna read-only para validar metadados, dados estruturados e pontos de atenção documentais.
+            Não usa IA, scraping, OCR ou download em massa de PDFs.
+          </p>
+        </div>
+        <form class="documental-lab-form" data-documental-form>
+          <label>
+            Ticker
+            <input name="ticker" value="HGLG11" maxlength="6" autocomplete="off" required />
+          </label>
+          <button type="submit">Consultar</button>
+        </form>
+      </header>
+
+      <p class="documental-lab-message" data-documental-message></p>
+
+      <section class="documental-lab-grid" data-documental-result hidden>
+        <section class="documental-lab-panel is-wide">
+          <h2>Resumo do fundo</h2>
+          <div class="documental-lab-facts" data-documental-summary></div>
+        </section>
+
+        <section class="documental-lab-panel is-wide">
+          <h2>Dados estruturados do último período</h2>
+          <div class="documental-lab-facts" data-documental-facts></div>
+        </section>
+
+        <section class="documental-lab-panel">
+          <h2>Documentos / Relatórios disponíveis</h2>
+          <ul class="documental-lab-list" data-documental-documents></ul>
+        </section>
+
+        <section class="documental-lab-panel">
+          <h2>Pontos de atenção documentais</h2>
+          <ul class="documental-lab-list" data-documental-checks></ul>
+        </section>
+      </section>
+    </main>
+    <script src="/documental-lab.js"></script>
+  </body>
+</html>

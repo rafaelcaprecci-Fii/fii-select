@@ -70,6 +70,8 @@ const clientSessionMaxAge = 60 * 60 * 24 * 30;
 const protectedAdminRoutes = new Set([
   "/admin",
   "/admin.html",
+  "/admin/documental-lab",
+  "/admin/documental-lab.html",
   "/admin/login",
   "/admin-login.html",
   "/admin-negativa.html",
@@ -1718,6 +1720,280 @@ async function brapiFiiDiagnostic(
   return diagnostic;
 }
 
+function documentalNumber(value) {
+  if (value === undefined || value === null || value === "") return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function documentalPositiveNumber(value) {
+  const number = documentalNumber(value);
+  return number != null && number > 0 ? number : null;
+}
+
+function documentalDiff(left, right) {
+  const a = documentalNumber(left);
+  const b = documentalNumber(right);
+  if (a == null || b == null) return null;
+  const denominator = Math.max(Math.abs(a), Math.abs(b), 1);
+  return Math.abs(a - b) / denominator;
+}
+
+function documentalSource(endpoint, competence, collectedAt) {
+  return {
+    source: `BRAPI ${endpoint}`,
+    competence: competence || null,
+    collectedAt,
+  };
+}
+
+function documentalFact(facts, key, label, value, source) {
+  if (value === undefined || value === null || value === "") return;
+  facts.push({ key, label, value, ...source });
+}
+
+function documentalCheck({ id, label, status, message, fields = [] }) {
+  return {
+    id,
+    label,
+    status,
+    message,
+    fields,
+  };
+}
+
+function buildDocumentalLab(diagnostic) {
+  const data = diagnostic.data || {};
+  const market = data.market || {};
+  const patrimonial = data.patrimonial || {};
+  const cadastral = data.cadastral || {};
+  const properties = data.propertiesAndVacancy || {};
+  const portfolio = data.portfolio || {};
+  const report = data.report || {};
+  const dividends = Array.isArray(data.dividends) ? data.dividends : [];
+  const collectedAt = diagnostic.status?.requestedAt || new Date().toISOString();
+  const facts = [];
+  const checks = [];
+  const attentionMessage =
+    "Inconsistência detectada entre fontes ou competências. Verifique a origem dos dados antes de concluir.";
+  const insufficientMessage = "Dados insuficientes para esta checagem.";
+  const indicatorSource = documentalSource(
+    "/api/v2/fii/indicators",
+    market.asOfDate,
+    collectedAt,
+  );
+  const reportSource = documentalSource(
+    "/api/v2/fii/reports",
+    report.referenceDate,
+    collectedAt,
+  );
+  const propertiesSource = documentalSource(
+    "/api/v2/fii/properties",
+    properties.referenceDate,
+    collectedAt,
+  );
+  const portfolioSource = documentalSource(
+    "/api/v2/fii/portfolio",
+    portfolio.summary?.referenceDate || portfolio.summary?.symbol,
+    collectedAt,
+  );
+  const dividendSource = documentalSource(
+    "/api/v2/fii/dividends",
+    dividends[0]?.referenceDate,
+    collectedAt,
+  );
+
+  documentalFact(facts, "totalInvestors", "Número de cotistas", patrimonial.totalInvestors, indicatorSource);
+  documentalFact(facts, "equity", "Patrimônio líquido", patrimonial.equity, indicatorSource);
+  documentalFact(facts, "reportEquity", "Patrimônio líquido no report", report.equity, reportSource);
+  documentalFact(facts, "totalAssets", "Ativos totais", patrimonial.totalAssets, indicatorSource);
+  documentalFact(facts, "reportTotalAssets", "Ativos totais no report", report.totalAssets, reportSource);
+  documentalFact(facts, "totalLiabilities", "Passivos totais", report.totalLiabilities, reportSource);
+  documentalFact(facts, "sharesOutstanding", "Cotas emitidas", patrimonial.sharesOutstanding, indicatorSource);
+  documentalFact(facts, "navPerShare", "VP por cota", patrimonial.navPerShare, indicatorSource);
+  documentalFact(facts, "priceToNav", "P/VP", patrimonial.priceToNav, indicatorSource);
+  documentalFact(facts, "latestDividend", "Distribuição/rendimento", dividends[0]?.rate, dividendSource);
+  documentalFact(facts, "monthlyDividendYield", "DY mensal", report.monthlyDividendYield, reportSource);
+  documentalFact(facts, "adminFeeRate", "Taxa de administração", report.adminFeeRate, reportSource);
+  documentalFact(facts, "propertyCount", "Quantidade de imóveis", properties.count, propertiesSource);
+  documentalFact(facts, "vacancyRate", "Vacância consolidada", properties.vacancyRate, propertiesSource);
+  documentalFact(facts, "cash", "Caixa", report.cash ?? portfolio.summary?.cash, report.cash != null ? reportSource : portfolioSource);
+  documentalFact(facts, "cri", "CRI", report.cri, reportSource);
+  documentalFact(facts, "lci", "LCI", report.lci, reportSource);
+  documentalFact(facts, "fiiHoldings", "Cotas de FIIs", report.fiiHoldings, reportSource);
+
+  const documents = [];
+  if (report && Object.keys(report).length) {
+    documents.push({
+      type: "Relatório CVM estruturado",
+      competence: report.referenceDate || null,
+      publishedAt: report.referenceDate || null,
+      url: report.url || null,
+      documentUrl: report.documentUrl || null,
+      downloadUrl: report.downloadUrl || null,
+      source: "BRAPI / CVM",
+      status: report.url || report.documentUrl || report.downloadUrl
+        ? "metadados disponíveis"
+        : "metadados estruturados sem URL",
+    });
+  }
+
+  const expectedNavPerShare =
+    documentalPositiveNumber(patrimonial.equity) && documentalPositiveNumber(patrimonial.sharesOutstanding)
+      ? documentalNumber(patrimonial.equity) / documentalNumber(patrimonial.sharesOutstanding)
+      : null;
+  const navDiff = documentalDiff(patrimonial.navPerShare, expectedNavPerShare);
+  checks.push(
+    expectedNavPerShare == null || documentalNumber(patrimonial.navPerShare) == null
+      ? documentalCheck({
+        id: "nav-per-share",
+        label: "VP/cota vs patrimônio líquido / cotas emitidas",
+        status: "insufficient",
+        message: insufficientMessage,
+      })
+      : documentalCheck({
+        id: "nav-per-share",
+        label: "VP/cota vs patrimônio líquido / cotas emitidas",
+        status: navDiff > 0.01 ? "attention" : "ok",
+        message: navDiff > 0.01 ? attentionMessage : "Dados coerentes na checagem objetiva.",
+        fields: [
+          { label: "VP/cota informado", value: patrimonial.navPerShare, ...indicatorSource },
+          { label: "VP/cota calculado", value: expectedNavPerShare, ...indicatorSource },
+        ],
+      }),
+  );
+
+  const dividendYieldSource = documentalNumber(report.monthlyDividendYield) != null
+    ? reportSource
+    : indicatorSource;
+  const reportedMonthlyYield = report.monthlyDividendYield ?? market.dividendYield1m;
+  const expectedMonthlyYield =
+    documentalPositiveNumber(dividends[0]?.rate) && documentalPositiveNumber(market.price)
+      ? documentalNumber(dividends[0].rate) / documentalNumber(market.price)
+      : null;
+  const yieldDiff = documentalDiff(reportedMonthlyYield, expectedMonthlyYield);
+  checks.push(
+    expectedMonthlyYield == null || documentalNumber(reportedMonthlyYield) == null
+      ? documentalCheck({
+        id: "monthly-yield",
+        label: "DY mensal vs distribuição / preço",
+        status: "insufficient",
+        message: insufficientMessage,
+      })
+      : documentalCheck({
+        id: "monthly-yield",
+        label: "DY mensal vs distribuição / preço",
+        status: yieldDiff > 0.15 ? "attention" : "ok",
+        message: yieldDiff > 0.15 ? attentionMessage : "Dados coerentes na checagem objetiva.",
+        fields: [
+          { label: "DY mensal informado", value: reportedMonthlyYield, ...dividendYieldSource },
+          { label: "DY mensal calculado", value: expectedMonthlyYield, ...dividendSource },
+        ],
+      }),
+  );
+
+  const liabilitiesToEquity =
+    documentalPositiveNumber(report.totalLiabilities) && documentalPositiveNumber(report.equity ?? patrimonial.equity)
+      ? documentalNumber(report.totalLiabilities) / documentalNumber(report.equity ?? patrimonial.equity)
+      : null;
+  checks.push(
+    liabilitiesToEquity == null
+      ? documentalCheck({
+        id: "liabilities-to-equity",
+        label: "Passivos / patrimônio",
+        status: "insufficient",
+        message: insufficientMessage,
+      })
+      : documentalCheck({
+        id: "liabilities-to-equity",
+        label: "Passivos / patrimônio",
+        status: liabilitiesToEquity > 0.25 ? "attention" : "ok",
+        message: liabilitiesToEquity > 0.25
+          ? "Passivos / patrimônio acima do limite simples definido para o laboratório documental."
+          : "Dados coerentes na checagem objetiva.",
+        fields: [{ label: "Passivos / patrimônio", value: liabilitiesToEquity, ...reportSource }],
+      }),
+  );
+
+  const equityDiff = documentalDiff(patrimonial.equity, report.equity);
+  checks.push(
+    documentalNumber(patrimonial.equity) == null || documentalNumber(report.equity) == null
+      ? documentalCheck({
+        id: "equity-sources",
+        label: "Patrimônio dos indicators vs patrimônio do report",
+        status: "insufficient",
+        message: insufficientMessage,
+      })
+      : documentalCheck({
+        id: "equity-sources",
+        label: "Patrimônio dos indicators vs patrimônio do report",
+        status: equityDiff > 0.02 ? "attention" : "ok",
+        message: equityDiff > 0.02 ? attentionMessage : "Dados coerentes na checagem objetiva.",
+        fields: [
+          { label: "Patrimônio indicators", value: patrimonial.equity, ...indicatorSource },
+          { label: "Patrimônio report", value: report.equity, ...reportSource },
+        ],
+      }),
+  );
+
+  checks.push(
+    documentalCheck({
+      id: "investors-variation",
+      label: "Variação abrupta no número de cotistas",
+      status: "insufficient",
+      message: "Dados insuficientes para esta checagem. O laboratório ainda não consulta histórico de cotistas.",
+    }),
+  );
+
+  checks.push(
+    report.version && Number(report.version) > 1
+      ? documentalCheck({
+        id: "report-version",
+        label: "Documento retificado ou versão diferente",
+        status: "attention",
+        message: "Documento com versão superior a 1. Verifique se houve reapresentação antes de concluir.",
+        fields: [{ label: "Versão do report", value: report.version, ...reportSource }],
+      })
+      : documentalCheck({
+        id: "report-version",
+        label: "Documento retificado ou versão diferente",
+        status: report.version ? "ok" : "insufficient",
+        message: report.version ? "Dados coerentes na checagem objetiva." : insufficientMessage,
+      }),
+  );
+
+  return {
+    ok: true,
+    ticker: diagnostic.status?.ticker,
+    collectedAt,
+    source: "BRAPI / CVM estruturado",
+    status: diagnostic.status,
+    summary: {
+      ticker: diagnostic.status?.ticker,
+      type: cadastral.segmentType || null,
+      segment: cadastral.segmentoAtuacao || null,
+      administrator: cadastral.administratorName || null,
+      manager: cadastral.managerName || null,
+    },
+    facts,
+    documents,
+    checks,
+    attention: checks.filter((check) => check.status === "attention"),
+    notes: [
+      "Laboratório interno de leitura documental. Não representa recomendação de investimento.",
+      "Sem IA, OCR, scraping ou download em massa de PDFs nesta etapa.",
+    ],
+  };
+}
+
+async function documentalLab(ticker) {
+  const diagnostic = await brapiFiiDiagnostic(ticker, {
+    includeCdi: false,
+    internalEndpoint: "/admin/api/documental-lab",
+  });
+  return buildDocumentalLab(diagnostic);
+}
+
 async function crossedReading(ticker) {
   return cached(`crossed-reading:${ticker}`, 15 * 60 * 1000, async () => {
     const diagnostic = await brapiFiiDiagnostic(ticker, {
@@ -1990,6 +2266,8 @@ async function serveStatic(req, res, pathname) {
     "/admin/login": "admin-login.html",
     "/admin": "admin.html",
     "/admin/usuarios": "admin.html",
+    "/admin/documental-lab": "admin-documental-lab.html",
+    "/admin/documental-lab.html": "admin-documental-lab.html",
   };
   if (protectedAdminRoutes.has(pathname) && !requireAdminAuth(req, res)) return;
   if (["/ferramenta", "/ferramenta.html"].includes(pathname)) {
@@ -2131,6 +2409,23 @@ const server = http.createServer(async (req, res) => {
           });
         }
         const result = await brapiFiiDiagnostic(ticker);
+        return json(res, result.status.brapiTokenConfigured ? 200 : 503, result);
+      }
+
+      if (url.pathname === "/admin/api/documental-lab") {
+        if (req.method !== "GET") {
+          return json(res, 405, { ok: false, error: "Método não permitido." });
+        }
+        const ticker = String(
+          url.searchParams.get("ticker") || url.searchParams.get("Ticker") || "",
+        ).trim().toUpperCase();
+        if (!/^[A-Z]{4}[0-9]{2}$/.test(ticker)) {
+          return json(res, 400, {
+            ok: false,
+            error: "Informe um ticker de FII no formato HGLG11.",
+          });
+        }
+        const result = await documentalLab(ticker);
         return json(res, result.status.brapiTokenConfigured ? 200 : 503, result);
       }
 
