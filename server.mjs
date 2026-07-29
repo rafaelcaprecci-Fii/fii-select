@@ -1739,9 +1739,9 @@ function documentalDiff(left, right) {
   return Math.abs(a - b) / denominator;
 }
 
-function documentalSource(endpoint, competence, collectedAt) {
+function documentalSource(competence, collectedAt) {
   return {
-    source: `BRAPI ${endpoint}`,
+    source: "Dados estruturados CVM",
     competence: competence || null,
     collectedAt,
   };
@@ -1775,39 +1775,20 @@ function buildDocumentalLab(diagnostic) {
   const facts = [];
   const checks = [];
   const attentionMessage =
-    "Inconsistência detectada entre fontes ou competências. Verifique a origem dos dados antes de concluir.";
+    "Há uma divergência objetiva nos dados estruturados. Valide a informação antes de concluir.";
   const insufficientMessage = "Dados insuficientes para esta checagem.";
-  const indicatorSource = documentalSource(
-    "/api/v2/fii/indicators",
-    market.asOfDate,
-    collectedAt,
-  );
-  const reportSource = documentalSource(
-    "/api/v2/fii/reports",
-    report.referenceDate,
-    collectedAt,
-  );
-  const propertiesSource = documentalSource(
-    "/api/v2/fii/properties",
-    properties.referenceDate,
-    collectedAt,
-  );
-  const portfolioSource = documentalSource(
-    "/api/v2/fii/portfolio",
-    portfolio.summary?.referenceDate || portfolio.summary?.symbol,
-    collectedAt,
-  );
-  const dividendSource = documentalSource(
-    "/api/v2/fii/dividends",
-    dividends[0]?.referenceDate,
-    collectedAt,
-  );
+  const coherentMessage = "A checagem objetiva está coerente nos dados estruturados disponíveis.";
+  const indicatorSource = documentalSource(market.asOfDate, collectedAt);
+  const reportSource = documentalSource(report.referenceDate, collectedAt);
+  const propertiesSource = documentalSource(properties.referenceDate, collectedAt);
+  const portfolioSource = documentalSource(portfolio.summary?.referenceDate || portfolio.summary?.symbol, collectedAt);
+  const dividendSource = documentalSource(dividends[0]?.referenceDate, collectedAt);
 
   documentalFact(facts, "totalInvestors", "Número de cotistas", patrimonial.totalInvestors, indicatorSource);
   documentalFact(facts, "equity", "Patrimônio líquido", patrimonial.equity, indicatorSource);
-  documentalFact(facts, "reportEquity", "Patrimônio líquido no report", report.equity, reportSource);
+  documentalFact(facts, "reportEquity", "Patrimônio líquido no relatório", report.equity, reportSource);
   documentalFact(facts, "totalAssets", "Ativos totais", patrimonial.totalAssets, indicatorSource);
-  documentalFact(facts, "reportTotalAssets", "Ativos totais no report", report.totalAssets, reportSource);
+  documentalFact(facts, "reportTotalAssets", "Ativos totais no relatório", report.totalAssets, reportSource);
   documentalFact(facts, "totalLiabilities", "Passivos totais", report.totalLiabilities, reportSource);
   documentalFact(facts, "sharesOutstanding", "Cotas emitidas", patrimonial.sharesOutstanding, indicatorSource);
   documentalFact(facts, "navPerShare", "VP por cota", patrimonial.navPerShare, indicatorSource);
@@ -1831,10 +1812,10 @@ function buildDocumentalLab(diagnostic) {
       url: report.url || null,
       documentUrl: report.documentUrl || null,
       downloadUrl: report.downloadUrl || null,
-      source: "BRAPI / CVM",
+      source: "Dados estruturados CVM",
       status: report.url || report.documentUrl || report.downloadUrl
-        ? "metadados disponíveis"
-        : "metadados estruturados sem URL",
+        ? "Documento disponível"
+        : "URL não informada",
     });
   }
 
@@ -1854,8 +1835,10 @@ function buildDocumentalLab(diagnostic) {
       : documentalCheck({
         id: "nav-per-share",
         label: "VP/cota vs patrimônio líquido / cotas emitidas",
-        status: navDiff > 0.01 ? "attention" : "ok",
-        message: navDiff > 0.01 ? attentionMessage : "Dados coerentes na checagem objetiva.",
+        status: navDiff > 0.01 ? "concerning" : "positive",
+        message: navDiff > 0.01
+          ? attentionMessage
+          : "O VP/cota informado está coerente com o cálculo por patrimônio líquido e cotas emitidas.",
         fields: [
           { label: "VP/cota informado", value: patrimonial.navPerShare, ...indicatorSource },
           { label: "VP/cota calculado", value: expectedNavPerShare, ...indicatorSource },
@@ -1883,8 +1866,10 @@ function buildDocumentalLab(diagnostic) {
       : documentalCheck({
         id: "monthly-yield",
         label: "DY mensal vs distribuição / preço",
-        status: yieldDiff > 0.15 ? "attention" : "ok",
-        message: yieldDiff > 0.15 ? attentionMessage : "Dados coerentes na checagem objetiva.",
+        status: yieldDiff > 0.15 ? "concerning" : "positive",
+        message: yieldDiff > 0.15
+          ? attentionMessage
+          : "O DY mensal está coerente com a relação entre distribuição e preço observado.",
         fields: [
           { label: "DY mensal informado", value: reportedMonthlyYield, ...dividendYieldSource },
           { label: "DY mensal calculado", value: expectedMonthlyYield, ...dividendSource },
@@ -1907,10 +1892,10 @@ function buildDocumentalLab(diagnostic) {
       : documentalCheck({
         id: "liabilities-to-equity",
         label: "Passivos / patrimônio",
-        status: liabilitiesToEquity > 0.25 ? "attention" : "ok",
+        status: liabilitiesToEquity > 0.25 ? "concerning" : "positive",
         message: liabilitiesToEquity > 0.25
           ? "Passivos / patrimônio acima do limite simples definido para o laboratório documental."
-          : "Dados coerentes na checagem objetiva.",
+          : "A relação entre passivos e patrimônio está dentro do limite definido para esta checagem objetiva.",
         fields: [{ label: "Passivos / patrimônio", value: liabilitiesToEquity, ...reportSource }],
       }),
   );
@@ -1920,18 +1905,20 @@ function buildDocumentalLab(diagnostic) {
     documentalNumber(patrimonial.equity) == null || documentalNumber(report.equity) == null
       ? documentalCheck({
         id: "equity-sources",
-        label: "Patrimônio dos indicators vs patrimônio do report",
+        label: "Patrimônio dos indicadores vs patrimônio do relatório",
         status: "insufficient",
         message: insufficientMessage,
       })
       : documentalCheck({
         id: "equity-sources",
-        label: "Patrimônio dos indicators vs patrimônio do report",
-        status: equityDiff > 0.02 ? "attention" : "ok",
-        message: equityDiff > 0.02 ? attentionMessage : "Dados coerentes na checagem objetiva.",
+        label: "Patrimônio dos indicadores vs patrimônio do relatório",
+        status: equityDiff > 0.02 ? "concerning" : "positive",
+        message: equityDiff > 0.02
+          ? attentionMessage
+          : "O patrimônio líquido dos indicadores está coerente com o patrimônio informado no relatório estruturado.",
         fields: [
-          { label: "Patrimônio indicators", value: patrimonial.equity, ...indicatorSource },
-          { label: "Patrimônio report", value: report.equity, ...reportSource },
+          { label: "Patrimônio dos indicadores", value: patrimonial.equity, ...indicatorSource },
+          { label: "Patrimônio do relatório", value: report.equity, ...reportSource },
         ],
       }),
   );
@@ -1939,7 +1926,7 @@ function buildDocumentalLab(diagnostic) {
   checks.push(
     documentalCheck({
       id: "investors-variation",
-      label: "Variação abrupta no número de cotistas",
+      label: "Variação no número de cotistas",
       status: "insufficient",
       message: "Dados insuficientes para esta checagem. O laboratório ainda não consulta histórico de cotistas.",
     }),
@@ -1952,13 +1939,15 @@ function buildDocumentalLab(diagnostic) {
         label: "Documento retificado ou versão diferente",
         status: "attention",
         message: "Documento com versão superior a 1. Verifique se houve reapresentação antes de concluir.",
-        fields: [{ label: "Versão do report", value: report.version, ...reportSource }],
+        fields: [{ label: "Versão do relatório", value: report.version, ...reportSource }],
       })
       : documentalCheck({
         id: "report-version",
         label: "Documento retificado ou versão diferente",
-        status: report.version ? "ok" : "insufficient",
-        message: report.version ? "Dados coerentes na checagem objetiva." : insufficientMessage,
+        status: report.version ? "attention" : "insufficient",
+        message: report.version
+          ? "Não foi identificada reapresentação relevante nos dados estruturados disponíveis."
+          : insufficientMessage,
       }),
   );
 
@@ -1966,8 +1955,12 @@ function buildDocumentalLab(diagnostic) {
     ok: true,
     ticker: diagnostic.status?.ticker,
     collectedAt,
-    source: "BRAPI / CVM estruturado",
-    status: diagnostic.status,
+    source: "Dados estruturados CVM",
+    status: {
+      ticker: diagnostic.status?.ticker,
+      requestedAt: diagnostic.status?.requestedAt,
+      brapiTokenConfigured: diagnostic.status?.brapiTokenConfigured,
+    },
     summary: {
       ticker: diagnostic.status?.ticker,
       type: cadastral.segmentType || null,
@@ -1978,7 +1971,7 @@ function buildDocumentalLab(diagnostic) {
     facts,
     documents,
     checks,
-    attention: checks.filter((check) => check.status === "attention"),
+    attention: checks.filter((check) => check.status === "attention" || check.status === "concerning"),
     notes: [
       "Laboratório interno de leitura documental. Não representa recomendação de investimento.",
       "Sem IA, OCR, scraping ou download em massa de PDFs nesta etapa.",

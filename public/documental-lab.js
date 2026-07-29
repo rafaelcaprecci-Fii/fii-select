@@ -44,11 +44,17 @@ function formatValue(key, value) {
   return numberFormatter.format(number);
 }
 
+function formatDate(value) {
+  const match = String(value || "").match(/^(\d{4})-(\d{2})(?:-(\d{2}))?/);
+  if (match) return match[3] ? `${match[3]}/${match[2]}/${match[1]}` : `${match[2]}/${match[1]}`;
+  return value ? new Date(value).toLocaleDateString("pt-BR") : "Não informado";
+}
+
 function sourceText(item) {
   return [
-    item.source,
-    item.competence ? `competência ${item.competence}` : "",
-    item.collectedAt ? `coleta ${new Date(item.collectedAt).toLocaleString("pt-BR")}` : "",
+    item.competence ? `Competência: ${formatDate(item.competence)}` : "",
+    item.collectedAt ? `Coleta: ${formatDate(item.collectedAt)}` : "",
+    `Fonte: ${item.source || "Dados estruturados CVM"}`,
   ].filter(Boolean).join(" • ");
 }
 
@@ -72,35 +78,35 @@ function summaryCard(label, value) {
 }
 
 function documentItem(document) {
-  const links = [
-    ["URL", document.url],
-    ["documentUrl", document.documentUrl],
-    ["downloadUrl", document.downloadUrl],
-  ]
-    .filter(([, href]) => href)
-    .map(([label, href]) => `<a href="${escapeHtml(href)}" target="_blank" rel="noopener">${escapeHtml(label)}</a>`)
-    .join(" • ");
+  const href = document.url || document.documentUrl || document.downloadUrl || "";
+  const status = href ? "Documento disponível" : "URL não informada";
 
   return `
     <li class="documental-lab-card">
       <small>${escapeHtml(document.type || "Documento")}</small>
-      <strong>${escapeHtml(document.competence || "Competência não informada")}</strong>
-      <span>${escapeHtml(document.source || "Fonte não informada")} • ${escapeHtml(document.status || "Status não informado")}</span>
-      ${links ? `<span>${links}</span>` : "<span>URL não informada</span>"}
+      <strong>${escapeHtml(document.competence ? formatDate(document.competence) : "Competência não informada")}</strong>
+      <span>Fonte: ${escapeHtml(document.source || "Dados estruturados CVM")}</span>
+      <span>Status: ${escapeHtml(document.status || status)}</span>
+      ${href ? `<a class="documental-lab-link" href="${escapeHtml(href)}" target="_blank" rel="noopener">Abrir documento</a>` : "<span>URL não informada</span>"}
     </li>
   `;
 }
 
+function statusFlag(status) {
+  if (status === "concerning") return { label: "Preocupante", className: "is-concerning" };
+  if (status === "positive" || status === "ok") return { label: "Positivo", className: "is-positive" };
+  return { label: "Atenção", className: "is-attention" };
+}
+
 function checkItem(check) {
-  const statusClass =
-    check.status === "attention" ? "is-attention" : check.status === "ok" ? "is-ok" : "";
+  const flag = statusFlag(check.status);
   const fields = (check.fields || [])
-    .map((field) => `<span>${escapeHtml(field.label)}: ${escapeHtml(formatValue("", field.value))} • ${escapeHtml(sourceText(field))}</span>`)
+    .map((field) => `<span><b>${escapeHtml(field.label)}:</b> ${escapeHtml(formatValue("", field.value))} • ${escapeHtml(sourceText(field))}</span>`)
     .join("");
 
   return `
     <li class="documental-lab-card">
-      <span class="documental-lab-status ${statusClass}">${escapeHtml(check.status || "indefinido")}</span>
+      <span class="documental-lab-status ${flag.className}">${escapeHtml(flag.label)}</span>
       <strong>${escapeHtml(check.label)}</strong>
       <span>${escapeHtml(check.message)}</span>
       ${fields}

@@ -8,6 +8,21 @@ import test from "node:test";
 
 const root = new URL("../", import.meta.url);
 
+test("interface do laboratório documental oculta fonte técnica e usa flags amigáveis", async () => {
+  const [html, js] = await Promise.all([
+    readFile(new URL("../public/admin-documental-lab.html", import.meta.url), "utf8"),
+    readFile(new URL("../public/documental-lab.js", import.meta.url), "utf8"),
+  ]);
+  const interfaceSource = `${html}\n${js}`;
+
+  assert.doesNotMatch(interfaceSource, /BRAPI|\/api\/v2\/fii\/indicators|\/api\/v2\/fii\/reports|\/api\/v2\/fii\/dividends|INSUFFICIENT|\bOK\b|is-ok/);
+  assert.match(interfaceSource, /Preocupante/);
+  assert.match(interfaceSource, /Atenção/);
+  assert.match(interfaceSource, /Positivo/);
+  assert.match(interfaceSource, /URL não informada/);
+  assert.match(interfaceSource, /Abrir documento/);
+});
+
 async function availablePort() {
   return new Promise((resolve, reject) => {
     const server = net.createServer();
@@ -124,9 +139,13 @@ test("laboratório documental é interno, read-only e sanitizado", async (contex
   assert.equal(body.summary.administrator, "Administrador Teste");
   assert.ok(body.facts.some((fact) => fact.key === "totalInvestors" && fact.value === 12345));
   assert.ok(body.documents.some((document) => document.documentUrl === "https://example.com/report.pdf"));
-  assert.ok(body.checks.some((check) => check.id === "nav-per-share" && check.status === "attention"));
+  assert.ok(body.checks.some((check) => check.id === "nav-per-share" && check.status === "concerning"));
   assert.ok(body.checks.some((check) => check.status === "insufficient"));
-  assert.doesNotMatch(serialized, /fake-brapi-token|ADMIN_PASSWORD|admin-test|password-test/i);
+  assert.ok(body.checks.some((check) => check.status === "positive"));
+  assert.ok(body.checks.some((check) => check.id === "report-version" && check.status === "attention"));
+  assert.equal(body.source, "Dados estruturados CVM");
+  assert.ok(body.documents.every((document) => document.source === "Dados estruturados CVM"));
+  assert.doesNotMatch(serialized, /fake-brapi-token|ADMIN_PASSWORD|admin-test|password-test|\/api\/v2\/fii\/indicators|\/api\/v2\/fii\/reports|\/api\/v2\/fii\/dividends/i);
 
   assert.equal(await readFile(usersPath, "utf8"), usersContent);
   assert.equal(await readFile(searchesPath, "utf8"), searchesContent);
