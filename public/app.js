@@ -66,9 +66,26 @@ function optionalInvestors(value) {
   return Number.isFinite(number) && number > 0 ? `${integer(Math.trunc(number))} cotistas` : "";
 }
 
-function crossedFact(label, value) {
+function optionalInteger(value, suffix = "") {
+  if (value === null || value === undefined || value === "") return "";
+  const number = Number(value);
+  if (!Number.isFinite(number) || number <= 0) return "";
+  return `${integer(Math.trunc(number))}${suffix ? ` ${suffix}` : ""}`;
+}
+
+function optionalText(value, fallback = "Não informado") {
+  const text = String(value || "").trim();
+  return text || fallback;
+}
+
+function optionalDate(value) {
+  const match = String(value || "").match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return match ? `${match[3]}/${match[2]}/${match[1]}` : "Não informado";
+}
+
+function crossedFact(label, value, extraClass = "") {
   if (value === "" || value === null || value === undefined) return "";
-  return `<article><small>${escapeHtml(label)}</small><strong>${escapeHtml(value)}</strong></article>`;
+  return `<article${extraClass ? ` class="${escapeHtml(extraClass)}"` : ""}><small>${escapeHtml(label)}</small><strong>${escapeHtml(value)}</strong></article>`;
 }
 
 function renderCrossedReading(result, fallbackFund = {}) {
@@ -86,92 +103,53 @@ function renderCrossedReading(result, fallbackFund = {}) {
     crossedFact("Patrimônio líquido", optionalMoney(common.equity)),
     crossedFact("Ativos totais", optionalMoney(common.totalAssets)),
     crossedFact("Passivos totais", optionalMoney(common.totalLiabilities)),
-    crossedFact("VP por cota", optionalMoney(common.navPerShare)),
+    crossedFact("Passivos / ativos", optionalPercent(common.liabilitiesToAssets)),
+    crossedFact("Quantidade de imóveis", specific.propertyCount),
+    crossedFact("Vacância consolidada", optionalPercent(specific.consolidatedVacancy)),
     crossedFact(
-      "P/VP",
-      common.priceToNav !== null &&
-      common.priceToNav !== undefined &&
-      common.priceToNav !== "" &&
-      Number.isFinite(Number(common.priceToNav))
-        ? `${Number(common.priceToNav).toFixed(2).replace(".", ",")}x`
+      "Vacância por imóvel",
+      specific.vacancyByProperty?.length
+        ? `${specific.vacancyByProperty.length} imóveis com dado disponível`
         : "",
     ),
-    crossedFact("Alavancagem", optionalPercent(common.leverage)),
-    crossedFact("Passivos / ativos", optionalPercent(common.liabilitiesToAssets)),
-    crossedFact("Número de cotistas", optionalInvestors(common.totalInvestors)),
     crossedFact(
-      "Histórico de rendimentos",
-      Array.isArray(common.dividendHistory) && common.dividendHistory.length
-        ? `${common.dividendHistory.length} registros`
+      "Participação na receita",
+      specific.revenueShareByProperty?.length
+        ? `${specific.revenueShareByProperty.length} imóveis com dado disponível`
         : "",
+    ),
+    crossedFact("CRI", optionalMoney(common.cri)),
+    crossedFact("LCI", optionalMoney(common.lci)),
+    crossedFact("Cotas de FIIs", optionalMoney(common.fiiHoldings)),
+    crossedFact("Caixa", optionalMoney(common.cash)),
+    crossedFact("Número de cotistas", optionalInvestors(common.totalInvestors)),
+    crossedFact("Taxa de administração", optionalPercent(common.adminFeeRate)),
+    crossedFact("Cotas emitidas", optionalInteger(common.sharesOutstanding, "cotas")),
+    crossedFact("Alavancagem", optionalPercent(common.leverage)),
+    crossedFact(
+      "Área declarada",
+      Number.isFinite(Number(specific.declaredArea))
+        ? `${new Intl.NumberFormat("pt-BR").format(Number(specific.declaredArea))} m²`
+        : "",
+    ),
+    crossedFact(
+      "Inadimplência por imóvel",
+      specific.delinquencyByProperty?.length
+        ? `${specific.delinquencyByProperty.length} imóveis com dado disponível`
+        : "",
+    ),
+    crossedFact(
+      "Principais imóveis",
+      specific.mainProperties?.length
+        ? specific.mainProperties.map((property) => property.name).filter(Boolean).join(", ")
+        : "",
+      "wide",
     ),
   ].filter(Boolean);
   document.querySelector("#crossed-reading-grid").innerHTML =
     commonFacts.join("") || "<p>Dados patrimoniais adicionais não disponíveis.</p>";
 
-  const specificFacts = [];
-  if (result.type === "tijolo") {
-    specificFacts.push(
-      crossedFact("Quantidade de imóveis", specific.propertyCount),
-      crossedFact(
-        "Área declarada dos imóveis",
-        Number.isFinite(Number(specific.declaredArea))
-          ? `${new Intl.NumberFormat("pt-BR").format(Number(specific.declaredArea))} m²`
-          : "",
-      ),
-      crossedFact("Vacância consolidada", optionalPercent(specific.consolidatedVacancy)),
-      crossedFact(
-        "Vacância por imóvel",
-        specific.vacancyByProperty?.length
-          ? `${specific.vacancyByProperty.length} imóveis com dado disponível`
-          : "",
-      ),
-      crossedFact(
-        "Inadimplência por imóvel",
-        specific.delinquencyByProperty?.length
-          ? `${specific.delinquencyByProperty.length} imóveis com dado disponível`
-          : "",
-      ),
-      crossedFact(
-        "Participação na receita",
-        specific.revenueShareByProperty?.length
-          ? `${specific.revenueShareByProperty.length} imóveis com dado disponível`
-          : "",
-      ),
-    );
-    if (specific.mainProperties?.length) {
-      specificFacts.push(
-        crossedFact(
-          "Principais imóveis",
-          specific.mainProperties.map((property) => property.name).filter(Boolean).join(", "),
-        ),
-      );
-    }
-  }
-  if (result.type === "papel") {
-    specificFacts.push(
-      crossedFact("Quantidade de CRIs", specific.criCount),
-      crossedFact("Valor total em CRIs", optionalMoney(specific.totalCriValue)),
-      crossedFact("Quantidade de LCIs", specific.lciCount),
-      crossedFact("Valor total em LCIs", optionalMoney(specific.totalLciValue)),
-      crossedFact(
-        "Títulos públicos",
-        Array.isArray(specific.governmentBonds)
-          ? `${specific.governmentBonds.length} registros`
-          : optionalMoney(specific.governmentBonds),
-      ),
-      crossedFact(
-        "Cotas de FIIs",
-        specific.fundHoldings?.length ? `${specific.fundHoldings.length} posições` : "",
-      ),
-      crossedFact(
-        "Inadimplência de créditos",
-        optionalPercent(specific.creditDelinquencyRate),
-      ),
-    );
-  }
-  document.querySelector("#crossed-type-specific").innerHTML =
-    specificFacts.filter(Boolean).join("");
+  document.querySelector("#crossed-type-specific").innerHTML = "";
 
   const cautions = Array.isArray(result.cautions) ? result.cautions : [];
   document.querySelector("#crossed-cautions").innerHTML = cautions
@@ -369,6 +347,10 @@ async function submit(event) {
 
     setText("#fund-name", `${result.ticker} • ${result.fund.name}`);
     setText("#fair-value", money(result.valuation.fairValue));
+    setText("#fund-administrator", optionalText(result.fund.administratorName));
+    setText("#fund-classification", formatFundClassification(result.fund));
+    setText("#fund-manager", optionalText(result.fund.managerName));
+    setText("#fund-data-date", optionalDate(result.fund.dataAsOfDate));
     setText("#current-price", money(result.fund.currentPrice));
     setText("#premium-discount", percent(result.valuation.premiumDiscount));
     setText("#price-to-nav", `${result.fund.priceToNav.toFixed(2).replace(".", ",")}x`);

@@ -2101,6 +2101,8 @@ async function valuation(url, internalEndpoint = "/api/valuation") {
         Number.isFinite(totalInvestors) && totalInvestors > 0
           ? Math.trunc(totalInvestors)
           : null,
+      administratorName: indicators.administratorName || null,
+      managerName: indicators.managerName || null,
       patrimonialReading,
       dataAsOfDate: indicators.asOfDate,
       classification: normalizeFundClassification(

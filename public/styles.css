@@ -7156,6 +7156,10 @@ body.tool-page .crossed-reading-grid article {
   box-shadow: 0 2px 8px rgba(12, 31, 54, .04);
 }
 
+body.tool-page .crossed-reading-grid article.wide {
+  grid-column: span 2;
+}
+
 body.tool-page .crossed-reading-grid small {
   min-height: 40px;
   margin: 0;
@@ -7169,6 +7173,8 @@ body.tool-page .crossed-reading-grid strong {
   padding: 13px 16px;
   color: var(--tool-ink);
   font-size: 15px;
+  overflow-wrap: anywhere;
+  word-break: normal;
 }
 
 body.tool-page .crossed-cautions,
@@ -7374,6 +7380,10 @@ body.tool-page .suggestion-card button {
   body.tool-page .crossed-reading-grid,
   body.tool-page .suggestion-list {
     grid-template-columns: 1fr;
+  }
+
+  body.tool-page .crossed-reading-grid article.wide {
+    grid-column: auto;
   }
 }
 

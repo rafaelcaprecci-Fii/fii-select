@@ -22,6 +22,7 @@ function baseData({
       priceToNav: 0.91,
       equity: 1_000,
       totalAssets: 1_250,
+      sharesOutstanding: 100_000,
       totalInvestors: 1234567,
     },
     cadastral: {
@@ -69,15 +70,20 @@ function brickProperties(count) {
 }
 
 test("JSRE11 é normalizado como tijolo e limita os principais imóveis", () => {
+  const data = baseData({
+    ticker: "JSRE11",
+    segmentType: "tijolo",
+    segmentoAtuacao: "Lajes Corporativas",
+    properties: brickProperties(12),
+    allocations: [{ assetClass: "real_estate", count: 12 }],
+  });
+  data.report.fiiHoldings = 75;
+  data.report.cash = 25;
+  data.report.adminFeeRate = 0.01;
+
   const normalized = normalizeCrossedReading({
     ticker: "JSRE11",
-    data: baseData({
-      ticker: "JSRE11",
-      segmentType: "tijolo",
-      segmentoAtuacao: "Lajes Corporativas",
-      properties: brickProperties(12),
-      allocations: [{ assetClass: "real_estate", count: 12 }],
-    }),
+    data,
   });
 
   assert.equal(normalized.type, "tijolo");
@@ -90,6 +96,12 @@ test("JSRE11 é normalizado como tijolo e limita os principais imóveis", () => 
   assert.equal(normalized.common.leverage, 0.25);
   assert.equal(normalized.common.liabilitiesToAssets, 0.2);
   assert.equal(normalized.common.totalInvestors, 1234567);
+  assert.equal(normalized.common.sharesOutstanding, 100000);
+  assert.equal(normalized.common.adminFeeRate, 0.01);
+  assert.equal(normalized.common.cri, 500);
+  assert.equal(normalized.common.lci, 100);
+  assert.equal(normalized.common.fiiHoldings, 75);
+  assert.equal(normalized.common.cash, 25);
   assert.equal("cdi" in normalized.common, false);
 });
 
@@ -105,6 +117,28 @@ test("número de cotistas ausente ou inválido não entra na leitura cruzada", (
   const normalized = normalizeCrossedReading({ ticker: "HGLG11", data });
 
   assert.equal(normalized.common.totalInvestors, null);
+});
+
+test("campos patrimoniais ausentes não são convertidos para zero", () => {
+  const data = baseData({
+    ticker: "HGLG11",
+    segmentType: "tijolo",
+    segmentoAtuacao: "Logística",
+    properties: brickProperties(1),
+  });
+  delete data.report.cri;
+  delete data.report.lci;
+  delete data.report.cash;
+  delete data.report.fiiHoldings;
+  delete data.report.adminFeeRate;
+
+  const normalized = normalizeCrossedReading({ ticker: "HGLG11", data });
+
+  assert.equal(normalized.common.cri, null);
+  assert.equal(normalized.common.lci, null);
+  assert.equal(normalized.common.cash, null);
+  assert.equal(normalized.common.fiiHoldings, null);
+  assert.equal(normalized.common.adminFeeRate, null);
 });
 
 test("HGLG11 é normalizado como tijolo com área declarada e vacância", () => {
