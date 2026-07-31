@@ -1762,6 +1762,237 @@ function documentalCheck({ id, label, status, message, fields = [] }) {
   };
 }
 
+const DOCUMENTAL_NOT_IDENTIFIED = "Dado não identificado nos documentos analisados.";
+
+function documentalSupport(label, key, value, source) {
+  if (value === undefined || value === null || value === "") return null;
+  return { label, key, value, ...source };
+}
+
+function documentalListItem(title, text, support = []) {
+  return {
+    title,
+    text,
+    support: support.filter(Boolean),
+  };
+}
+
+function documentalAssistedBlock({ id, title, status = "attention", text, support = [], items = [] }) {
+  return {
+    id,
+    title,
+    status,
+    text: text || DOCUMENTAL_NOT_IDENTIFIED,
+    support: support.filter(Boolean),
+    items: items.filter(Boolean),
+  };
+}
+
+function buildDocumentalAssistedReading({
+  market,
+  patrimonial,
+  cadastral,
+  properties,
+  portfolio,
+  report,
+  dividends,
+  collectedAt,
+  indicatorSource,
+  reportSource,
+  propertiesSource,
+  portfolioSource,
+  dividendSource,
+  liabilitiesToEquity,
+}) {
+  const latestDividend = dividends[0]?.rate;
+  const hasDividend = documentalPositiveNumber(latestDividend) != null;
+  const hasPropertyCount = documentalPositiveNumber(properties.count) != null;
+  const hasVacancy = documentalNumber(properties.vacancyRate) != null;
+  const hasCapitalStructure = documentalNumber(report.totalLiabilities) != null || documentalNumber(report.equity ?? patrimonial.equity) != null;
+  const hasPortfolioComposition = [report.cash, report.cri, report.lci, report.fiiHoldings, portfolio.summary?.declaredValue]
+    .some((value) => documentalNumber(value) != null);
+  const developmentText = "Não foram identificadas obras, expansões ou imóveis em desenvolvimento nos documentos analisados.";
+  const emissionsText = "Histórico de emissões não identificado nos documentos analisados.";
+  const nonRecurringText = "Nenhum evento não recorrente relevante foi identificado nos documentos analisados.";
+  const notIdentifiedItems = [
+    "tipo de contrato",
+    "qualidade dos inquilinos",
+    "vencimento de contratos",
+    "histórico de emissões",
+    "obras em andamento",
+    "estágio das obras",
+    "margem NOI",
+    "fluxo de visitantes",
+    "vendas dos lojistas",
+  ];
+
+  const positiveItems = [];
+  if (hasVacancy && documentalNumber(properties.vacancyRate) <= 0.05) {
+    positiveItems.push(documentalListItem(
+      "Vacância baixa nos dados estruturados",
+      "A vacância consolidada informada está em patamar baixo para esta checagem documental.",
+      [documentalSupport("Vacância consolidada", "vacancyRate", properties.vacancyRate, propertiesSource)],
+    ));
+  }
+  if (hasPropertyCount) {
+    positiveItems.push(documentalListItem(
+      "Carteira com imóveis identificados",
+      "A base estruturada informa quantidade de imóveis para o fundo no período analisado.",
+      [documentalSupport("Quantidade de imóveis", "propertyCount", properties.count, propertiesSource)],
+    ));
+  }
+  if (liabilitiesToEquity != null && liabilitiesToEquity <= 0.25) {
+    positiveItems.push(documentalListItem(
+      "Estrutura de capital dentro do limite da checagem",
+      "A relação entre passivos e patrimônio está dentro do limite objetivo usado pelo laboratório.",
+      [documentalSupport("Passivos / patrimônio", "liabilitiesToEquity", liabilitiesToEquity, reportSource)],
+    ));
+  }
+
+  const riskItems = [];
+  if (liabilitiesToEquity != null && liabilitiesToEquity > 0.25) {
+    riskItems.push(documentalListItem(
+      "Alavancagem exige acompanhamento",
+      "A relação entre passivos e patrimônio está acima do limite objetivo usado pelo laboratório documental.",
+      [documentalSupport("Passivos / patrimônio", "liabilitiesToEquity", liabilitiesToEquity, reportSource)],
+    ));
+  }
+  if (!hasDividend) {
+    riskItems.push(documentalListItem(
+      "Rendimento não identificado",
+      DOCUMENTAL_NOT_IDENTIFIED,
+    ));
+  }
+  if (report.version && Number(report.version) > 1) {
+    riskItems.push(documentalListItem(
+      "Documento com versão superior a 1",
+      "A versão do relatório exige validação manual sobre possível reapresentação.",
+      [documentalSupport("Versão do relatório", "version", report.version, reportSource)],
+    ));
+  }
+
+  return [
+    documentalAssistedBlock({
+      id: "monthly-summary",
+      title: "Resumo do mês",
+      status: "attention",
+      text: "Resumo do mês não identificado nos documentos analisados.",
+      support: [
+        documentalSupport("Competência do relatório", "referenceDate", report.referenceDate, reportSource),
+        documentalSupport("Data de coleta", "collectedAt", collectedAt, indicatorSource),
+      ],
+    }),
+    documentalAssistedBlock({
+      id: "income-origin",
+      title: "Rendimento e origem do DY",
+      status: hasDividend ? "attention" : "attention",
+      text: hasDividend
+        ? "Há rendimento informado no período, mas a origem recorrente ou não recorrente ainda não é identificada automaticamente pelos dados estruturados."
+        : DOCUMENTAL_NOT_IDENTIFIED,
+      support: [
+        documentalSupport("Distribuição/rendimento", "latestDividend", latestDividend, dividendSource),
+        documentalSupport("DY mensal", "monthlyDividendYield", report.monthlyDividendYield ?? market.dividendYield1m, report.monthlyDividendYield != null ? reportSource : indicatorSource),
+      ],
+    }),
+    documentalAssistedBlock({
+      id: "portfolio-quality",
+      title: "Portfólio e qualidade dos ativos",
+      status: hasPropertyCount || hasPortfolioComposition ? "attention" : "attention",
+      text: hasPropertyCount || hasPortfolioComposition
+        ? "A base estruturada informa elementos do portfólio, mas a qualidade dos ativos depende de evidências do relatório gerencial."
+        : DOCUMENTAL_NOT_IDENTIFIED,
+      support: [
+        documentalSupport("Quantidade de imóveis", "propertyCount", properties.count, propertiesSource),
+        documentalSupport("Vacância consolidada", "vacancyRate", properties.vacancyRate, propertiesSource),
+        documentalSupport("Caixa", "cash", report.cash ?? portfolio.summary?.cash, report.cash != null ? reportSource : portfolioSource),
+        documentalSupport("CRI", "cri", report.cri, reportSource),
+        documentalSupport("LCI", "lci", report.lci, reportSource),
+        documentalSupport("Cotas de FIIs", "fiiHoldings", report.fiiHoldings, reportSource),
+      ],
+    }),
+    documentalAssistedBlock({
+      id: "contracts-tenants",
+      title: "Contratos e inquilinos",
+      status: "attention",
+      text: "Tipo de contrato não identificado nos documentos analisados.",
+    }),
+    documentalAssistedBlock({
+      id: "works-developments",
+      title: "Obras, expansões e imóveis em desenvolvimento",
+      status: "attention",
+      text: developmentText,
+    }),
+    documentalAssistedBlock({
+      id: "strategy-vs-portfolio",
+      title: "Estratégia do fundo vs portfólio atual",
+      status: cadastral.segmentType || cadastral.segmentoAtuacao || hasPortfolioComposition ? "attention" : "attention",
+      text: cadastral.segmentType || cadastral.segmentoAtuacao || hasPortfolioComposition
+        ? "Os dados estruturados permitem ver tipo, segmento e composição parcial, mas a coerência com a estratégia declarada exige leitura do relatório gerencial."
+        : DOCUMENTAL_NOT_IDENTIFIED,
+      support: [
+        documentalSupport("Tipo", "segmentType", cadastral.segmentType, indicatorSource),
+        documentalSupport("Segmento", "segmentoAtuacao", cadastral.segmentoAtuacao, indicatorSource),
+        documentalSupport("Caixa", "cash", report.cash ?? portfolio.summary?.cash, report.cash != null ? reportSource : portfolioSource),
+        documentalSupport("CRI", "cri", report.cri, reportSource),
+        documentalSupport("LCI", "lci", report.lci, reportSource),
+        documentalSupport("Cotas de FIIs", "fiiHoldings", report.fiiHoldings, reportSource),
+      ],
+    }),
+    documentalAssistedBlock({
+      id: "capital-structure",
+      title: "Estrutura de capital e alavancagem",
+      status: liabilitiesToEquity == null ? "attention" : liabilitiesToEquity > 0.25 ? "concerning" : "positive",
+      text: liabilitiesToEquity == null
+        ? DOCUMENTAL_NOT_IDENTIFIED
+        : liabilitiesToEquity > 0.25
+          ? "A relação entre passivos e patrimônio exige acompanhamento nos dados estruturados do período."
+          : "A relação entre passivos e patrimônio está dentro do limite objetivo usado nesta leitura documental.",
+      support: [
+        documentalSupport("Passivos totais", "totalLiabilities", report.totalLiabilities, reportSource),
+        documentalSupport("Patrimônio líquido", "equity", report.equity ?? patrimonial.equity, report.equity != null ? reportSource : indicatorSource),
+        documentalSupport("Passivos / patrimônio", "liabilitiesToEquity", liabilitiesToEquity, reportSource),
+      ],
+    }),
+    documentalAssistedBlock({
+      id: "issuance-history",
+      title: "Histórico de emissões de cotas",
+      status: "attention",
+      text: emissionsText,
+    }),
+    documentalAssistedBlock({
+      id: "positive-points",
+      title: "Pontos positivos",
+      status: positiveItems.length ? "positive" : "attention",
+      text: positiveItems.length
+        ? "Pontos positivos identificados a partir de dados estruturados objetivos."
+        : DOCUMENTAL_NOT_IDENTIFIED,
+      items: positiveItems,
+    }),
+    documentalAssistedBlock({
+      id: "risks",
+      title: "Pontos de atenção / riscos",
+      status: riskItems.length ? "attention" : "attention",
+      text: riskItems.length
+        ? "Pontos que exigem validação ou acompanhamento documental."
+        : DOCUMENTAL_NOT_IDENTIFIED,
+      items: riskItems,
+    }),
+    documentalAssistedBlock({
+      id: "non-recurring-events",
+      title: "Eventos não recorrentes",
+      status: "attention",
+      text: nonRecurringText,
+    }),
+    documentalAssistedBlock({
+      id: "missing-data",
+      title: "Dados não identificados nos documentos",
+      status: "attention",
+      text: "Itens buscados pelo laboratório que ainda dependem de relatório gerencial, DRE/informe mais completo ou extração documental futura.",
+      items: notIdentifiedItems.map((item) => documentalListItem(item, DOCUMENTAL_NOT_IDENTIFIED)),
+    }),
+  ];
+}
+
 function buildDocumentalLab(diagnostic) {
   const data = diagnostic.data || {};
   const market = data.market || {};
@@ -1951,6 +2182,23 @@ function buildDocumentalLab(diagnostic) {
       }),
   );
 
+  const assistedReading = buildDocumentalAssistedReading({
+    market,
+    patrimonial,
+    cadastral,
+    properties,
+    portfolio,
+    report,
+    dividends,
+    collectedAt,
+    indicatorSource,
+    reportSource,
+    propertiesSource,
+    portfolioSource,
+    dividendSource,
+    liabilitiesToEquity,
+  });
+
   return {
     ok: true,
     ticker: diagnostic.status?.ticker,
@@ -1971,6 +2219,7 @@ function buildDocumentalLab(diagnostic) {
     facts,
     documents,
     checks,
+    assistedReading,
     attention: checks.filter((check) => check.status === "attention" || check.status === "concerning"),
     notes: [
       "Laboratório interno de leitura documental. Não representa recomendação de investimento.",

@@ -3,6 +3,7 @@ const resultSection = document.querySelector("[data-documental-result]");
 const message = document.querySelector("[data-documental-message]");
 const summary = document.querySelector("[data-documental-summary]");
 const facts = document.querySelector("[data-documental-facts]");
+const assisted = document.querySelector("[data-documental-assisted]");
 const documents = document.querySelector("[data-documental-documents]");
 const checks = document.querySelector("[data-documental-checks]");
 
@@ -114,6 +115,30 @@ function checkItem(check) {
   `;
 }
 
+function supportLine(item) {
+  return `<span><b>${escapeHtml(item.label)}:</b> ${escapeHtml(formatValue(item.key || "", item.value))} • ${escapeHtml(sourceText(item))}</span>`;
+}
+
+function assistedItem(item) {
+  const support = (item.support || []).map(supportLine).join("");
+  return `<li><b>${escapeHtml(item.title || "Item")}</b>: ${escapeHtml(item.text || "Dado não identificado nos documentos analisados.")}${support ? `<br>${support}` : ""}</li>`;
+}
+
+function assistedBlock(block) {
+  const flag = statusFlag(block.status);
+  const support = (block.support || []).map(supportLine).join("");
+  const items = (block.items || []).map(assistedItem).join("");
+  return `
+    <article class="documental-lab-card documental-assisted-card">
+      <span class="documental-lab-status ${flag.className}">${escapeHtml(flag.label)}</span>
+      <strong>${escapeHtml(block.title)}</strong>
+      <span>${escapeHtml(block.text || "Dado não identificado nos documentos analisados.")}</span>
+      ${support}
+      ${items ? `<ul>${items}</ul>` : ""}
+    </article>
+  `;
+}
+
 function render(data) {
   const info = data.summary || {};
   summary.innerHTML = [
@@ -127,6 +152,8 @@ function render(data) {
 
   facts.innerHTML = (data.facts || []).map(factCard).join("") ||
     '<p class="documental-lab-message">Não há dados estruturados disponíveis para exibição.</p>';
+  assisted.innerHTML = (data.assistedReading || []).map(assistedBlock).join("") ||
+    '<p class="documental-lab-message">Dado não identificado nos documentos analisados.</p>';
   documents.innerHTML = (data.documents || []).map(documentItem).join("") ||
     '<li class="documental-lab-card"><strong>Nenhum documento informado</strong><span>Não informado.</span></li>';
   checks.innerHTML = (data.checks || []).map(checkItem).join("") ||

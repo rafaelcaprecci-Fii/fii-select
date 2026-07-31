@@ -136,6 +136,28 @@
         list-style: none;
       }
 
+      .documental-assisted-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .documental-assisted-card {
+        min-width: 0;
+      }
+
+      .documental-assisted-card ul {
+        margin: 0;
+        padding-left: 18px;
+      }
+
+      .documental-assisted-card li {
+        margin: 6px 0;
+        color: #587080;
+        font-size: 13px;
+        line-height: 1.45;
+      }
+
       .documental-lab-status {
         display: inline-flex;
         justify-self: start;
@@ -185,7 +207,8 @@
         }
 
         .documental-lab-grid,
-        .documental-lab-facts {
+        .documental-lab-facts,
+        .documental-assisted-grid {
           grid-template-columns: 1fr;
         }
       }
@@ -222,6 +245,11 @@
         <section class="documental-lab-panel is-wide">
           <h2>Dados estruturados do último período</h2>
           <div class="documental-lab-facts" data-documental-facts></div>
+        </section>
+
+        <section class="documental-lab-panel is-wide">
+          <h2>Leitura documental assistida</h2>
+          <div class="documental-assisted-grid" data-documental-assisted></div>
         </section>
 
         <section class="documental-lab-panel">

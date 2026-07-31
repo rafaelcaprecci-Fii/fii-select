@@ -21,6 +21,8 @@ test("interface do laboratório documental oculta fonte técnica e usa flags ami
   assert.match(interfaceSource, /Positivo/);
   assert.match(interfaceSource, /URL não informada/);
   assert.match(interfaceSource, /Abrir documento/);
+  assert.match(interfaceSource, /Leitura documental assistida/);
+  assert.match(interfaceSource, /data-documental-assisted/);
 });
 
 async function availablePort() {
@@ -145,6 +147,26 @@ test("laboratório documental é interno, read-only e sanitizado", async (contex
   assert.ok(body.checks.some((check) => check.id === "report-version" && check.status === "attention"));
   assert.equal(body.source, "Dados estruturados CVM");
   assert.ok(body.documents.every((document) => document.source === "Dados estruturados CVM"));
+  assert.equal(body.assistedReading.length, 12);
+  assert.deepEqual(body.assistedReading.map((block) => block.title), [
+    "Resumo do mês",
+    "Rendimento e origem do DY",
+    "Portfólio e qualidade dos ativos",
+    "Contratos e inquilinos",
+    "Obras, expansões e imóveis em desenvolvimento",
+    "Estratégia do fundo vs portfólio atual",
+    "Estrutura de capital e alavancagem",
+    "Histórico de emissões de cotas",
+    "Pontos positivos",
+    "Pontos de atenção / riscos",
+    "Eventos não recorrentes",
+    "Dados não identificados nos documentos",
+  ]);
+  assert.match(JSON.stringify(body.assistedReading), /Dado não identificado nos documentos analisados\./);
+  assert.ok(body.assistedReading.some((block) => block.id === "positive-points" && block.items.some((item) => item.support?.length)));
+  assert.ok(body.assistedReading.some((block) => block.id === "risks" && block.items.some((item) => item.support?.length)));
+  assert.ok(body.assistedReading.some((block) => block.id === "non-recurring-events" && /Nenhum evento não recorrente/.test(block.text)));
+  assert.doesNotMatch(JSON.stringify(body.assistedReading), /\b(compre|venda|recomendado|melhor fundo|oportunidade|garantia|preço-alvo)\b/i);
   assert.doesNotMatch(serialized, /fake-brapi-token|ADMIN_PASSWORD|admin-test|password-test|\/api\/v2\/fii\/indicators|\/api\/v2\/fii\/reports|\/api\/v2\/fii\/dividends/i);
 
   assert.equal(await readFile(usersPath, "utf8"), usersContent);
