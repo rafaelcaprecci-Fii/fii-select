@@ -158,6 +158,12 @@
         line-height: 1.45;
       }
 
+      .documental-source-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+      }
+
       .documental-lab-status {
         display: inline-flex;
         justify-self: start;
@@ -208,7 +214,8 @@
 
         .documental-lab-grid,
         .documental-lab-facts,
-        .documental-assisted-grid {
+        .documental-assisted-grid,
+        .documental-source-grid {
           grid-template-columns: 1fr;
         }
       }
@@ -250,6 +257,11 @@
         <section class="documental-lab-panel is-wide">
           <h2>Leitura documental assistida</h2>
           <div class="documental-assisted-grid" data-documental-assisted></div>
+        </section>
+
+        <section class="documental-lab-panel is-wide">
+          <h2>Fontes documentais</h2>
+          <div class="documental-source-grid" data-documental-sources></div>
         </section>
 
         <section class="documental-lab-panel">

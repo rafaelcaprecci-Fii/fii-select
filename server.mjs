@@ -1763,6 +1763,37 @@ function documentalCheck({ id, label, status, message, fields = [] }) {
 }
 
 const DOCUMENTAL_NOT_IDENTIFIED = "Dado não identificado nos documentos analisados.";
+const DOCUMENTAL_SOURCE_REGISTRY = {
+  JSRE11: {
+    ticker: "JSRE11",
+    official: {
+      name: "Safra Asset",
+      url: "https://www.safra.com.br/safra-asset/fundo-imobiliario/js-real-estate.htm",
+    },
+    regulatory: {
+      name: "FNET / CVM",
+    },
+    shortcut: {
+      name: "Clube FII",
+    },
+  },
+};
+
+function buildDocumentalSources(ticker) {
+  const normalizedTicker = String(ticker || "").trim().toUpperCase();
+  const registered = DOCUMENTAL_SOURCE_REGISTRY[normalizedTicker] || {};
+  return {
+    ticker: normalizedTicker || null,
+    official: registered.official || null,
+    regulatory: registered.regulatory || { name: "FNET / CVM" },
+    shortcut: normalizedTicker
+      ? {
+        name: "Clube FII",
+        url: `https://www.clubefii.com.br/fiis/${encodeURIComponent(normalizedTicker)}`,
+      }
+      : null,
+  };
+}
 
 function documentalSupport(label, key, value, source) {
   if (value === undefined || value === null || value === "") return null;
@@ -2305,6 +2336,7 @@ function buildDocumentalLab(diagnostic) {
     documents,
     checks,
     assistedReading,
+    documentalSources: buildDocumentalSources(diagnostic.status?.ticker),
     attention: checks.filter((check) => check.status === "attention" || check.status === "concerning"),
     notes: [
       "Laboratório interno de leitura documental. Não representa recomendação de investimento.",

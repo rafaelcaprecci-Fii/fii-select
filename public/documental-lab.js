@@ -4,6 +4,7 @@ const message = document.querySelector("[data-documental-message]");
 const summary = document.querySelector("[data-documental-summary]");
 const facts = document.querySelector("[data-documental-facts]");
 const assisted = document.querySelector("[data-documental-assisted]");
+const documentalSources = document.querySelector("[data-documental-sources]");
 const documents = document.querySelector("[data-documental-documents]");
 const checks = document.querySelector("[data-documental-checks]");
 
@@ -74,6 +75,18 @@ function summaryCard(label, value) {
     <article class="documental-lab-card">
       <small>${escapeHtml(label)}</small>
       <strong>${escapeHtml(value || "Não informado")}</strong>
+    </article>
+  `;
+}
+
+function sourceCard(label, source, fallback) {
+  const name = source?.name || fallback;
+  const url = source?.url || "";
+  return `
+    <article class="documental-lab-card">
+      <small>${escapeHtml(label)}</small>
+      <strong>${escapeHtml(name)}</strong>
+      ${url ? `<a class="documental-lab-link" href="${escapeHtml(url)}" target="_blank" rel="noopener">Abrir fonte</a>` : "<span>Link não cadastrado.</span>"}
     </article>
   `;
 }
@@ -154,6 +167,12 @@ function render(data) {
     '<p class="documental-lab-message">Não há dados estruturados disponíveis para exibição.</p>';
   assisted.innerHTML = (data.assistedReading || []).map(assistedBlock).join("") ||
     '<p class="documental-lab-message">Dado não identificado nos documentos analisados.</p>';
+  const sources = data.documentalSources || {};
+  documentalSources.innerHTML = [
+    sourceCard("Fonte oficial", sources.official, "Fonte oficial não cadastrada."),
+    sourceCard("Fonte regulatória", sources.regulatory, "FNET / CVM"),
+    sourceCard("Atalho de consulta", sources.shortcut, "Clube FII"),
+  ].join("");
   documents.innerHTML = (data.documents || []).map(documentItem).join("") ||
     '<li class="documental-lab-card"><strong>Nenhum documento informado</strong><span>Não informado.</span></li>';
   checks.innerHTML = (data.checks || []).map(checkItem).join("") ||

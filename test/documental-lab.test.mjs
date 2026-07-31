@@ -23,6 +23,9 @@ test("interface do laboratório documental oculta fonte técnica e usa flags ami
   assert.match(interfaceSource, /Abrir documento/);
   assert.match(interfaceSource, /Leitura documental assistida/);
   assert.match(interfaceSource, /data-documental-assisted/);
+  assert.match(interfaceSource, /Fontes documentais/);
+  assert.match(interfaceSource, /data-documental-sources/);
+  assert.match(interfaceSource, /Fonte oficial não cadastrada\./);
 });
 
 async function availablePort() {
@@ -147,6 +150,10 @@ test("laboratório documental é interno, read-only e sanitizado", async (contex
   assert.ok(body.checks.some((check) => check.id === "report-version" && check.status === "attention"));
   assert.equal(body.source, "Dados estruturados CVM");
   assert.ok(body.documents.every((document) => document.source === "Dados estruturados CVM"));
+  assert.equal(body.documentalSources.official, null);
+  assert.equal(body.documentalSources.regulatory.name, "FNET / CVM");
+  assert.equal(body.documentalSources.shortcut.name, "Clube FII");
+  assert.equal(body.documentalSources.shortcut.url, "https://www.clubefii.com.br/fiis/HGLG11");
   assert.equal(body.assistedReading.length, 12);
   assert.deepEqual(body.assistedReading.map((block) => block.title), [
     "Resumo do mês",
@@ -187,4 +194,17 @@ test("dados não identificados são segmentados por tipo de fundo", async () => 
   assert.match(server, /papel:[\s\S]*"devedores"[\s\S]*"garantias"[\s\S]*"eventos de crédito"/);
   assert.match(server, /"lajes-corporativas":[\s\S]*"concentração percentual por locatário individual"[\s\S]*"WALE por receita"/);
   assert.match(server, /multicategoria\|multiestrategia/);
+});
+
+test("fontes documentais incluem cadastro inicial do JSRE11 e atalho por ticker", async () => {
+  const [server, js] = await Promise.all([
+    readFile(new URL("../server.mjs", import.meta.url), "utf8"),
+    readFile(new URL("../public/documental-lab.js", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(server, /JSRE11:[\s\S]*Safra Asset/);
+  assert.match(server, /https:\/\/www\.safra\.com\.br\/safra-asset\/fundo-imobiliario\/js-real-estate\.htm/);
+  assert.match(server, /FNET \/ CVM/);
+  assert.match(server, /https:\/\/www\.clubefii\.com\.br\/fiis\/\$\{encodeURIComponent\(normalizedTicker\)\}/);
+  assert.match(js, /target="_blank" rel="noopener"/);
 });
