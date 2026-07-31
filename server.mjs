@@ -1788,6 +1788,100 @@ function documentalAssistedBlock({ id, title, status = "attention", text, suppor
   };
 }
 
+function normalizeDocumentalSegment(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replaceAll(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+}
+
+function inferDocumentalSegment({ cadastral, properties, report }) {
+  const source = normalizeDocumentalSegment([
+    cadastral.segmentType,
+    cadastral.segmentoAtuacao,
+    cadastral.mandate,
+    cadastral.name,
+  ].filter(Boolean).join(" "));
+  const hasCorporateHints =
+    /laje|lajes|corporativ|escritorio|multicategoria|multiestrategia/.test(source) ||
+    documentalPositiveNumber(properties.count) != null;
+  if (/papel|recebive|cri|credito/.test(source) && documentalNumber(report.cri) > 0) return "papel";
+  if (/shopping|shoppings|mall/.test(source)) return "shopping";
+  if (/logistic|galpao|industrial/.test(source)) return "logistica";
+  if (hasCorporateHints) return "lajes-corporativas";
+  return "indefinido";
+}
+
+function missingDataItemsForSegment(segment) {
+  const lists = {
+    "lajes-corporativas": [
+      "tipo predominante dos contratos: típico ou atípico",
+      "concentração percentual por locatário individual",
+      "receita por locatário",
+      "inadimplência detalhada por locatário",
+      "multas, carências ou descontos comerciais relevantes",
+      "WALE por receita",
+      "vencimentos por locatário individual",
+      "revisionais por locatário individual",
+      "capex previsto por imóvel",
+      "pipeline de retrofit, obras ou melhorias",
+      "histórico recente de emissões de cotas",
+      "preço de emissão e possível diluição",
+      "uso de recursos de emissões anteriores",
+    ],
+    shopping: [
+      "vendas dos lojistas",
+      "fluxo de visitantes",
+      "aluguel mínimo",
+      "aluguel percentual",
+      "receitas de estacionamento",
+      "receitas de mall/mídia",
+      "inadimplência por lojista",
+      "NOI",
+      "margem NOI",
+      "ocupação",
+      "vacância",
+      "capex/expansões",
+      "histórico de emissões",
+    ],
+    logistica: [
+      "tipo de contrato típico/atípico",
+      "principais inquilinos",
+      "concentração por inquilino",
+      "prazo dos contratos",
+      "vencimentos",
+      "revisionais",
+      "vacância",
+      "área locável",
+      "localização dos ativos",
+      "capex",
+      "obras/expansões",
+      "histórico de emissões",
+    ],
+    papel: [
+      "devedores",
+      "garantias",
+      "indexadores",
+      "duration/prazo",
+      "LTV",
+      "subordinação",
+      "rating",
+      "inadimplência",
+      "concentração por devedor",
+      "concentração por operação",
+      "eventos de crédito",
+    ],
+  };
+  return lists[segment] || [
+    "segmento predominante do fundo",
+    "tipo de ativo predominante",
+    "concentração por ativo",
+    "histórico recente de emissões",
+    "eventos não recorrentes",
+  ];
+}
+
 function buildDocumentalAssistedReading({
   market,
   patrimonial,
@@ -1814,17 +1908,8 @@ function buildDocumentalAssistedReading({
   const developmentText = "Não foram identificadas obras, expansões ou imóveis em desenvolvimento nos documentos analisados.";
   const emissionsText = "Histórico de emissões não identificado nos documentos analisados.";
   const nonRecurringText = "Nenhum evento não recorrente relevante foi identificado nos documentos analisados.";
-  const notIdentifiedItems = [
-    "tipo de contrato",
-    "qualidade dos inquilinos",
-    "vencimento de contratos",
-    "histórico de emissões",
-    "obras em andamento",
-    "estágio das obras",
-    "margem NOI",
-    "fluxo de visitantes",
-    "vendas dos lojistas",
-  ];
+  const inferredSegment = inferDocumentalSegment({ cadastral, properties, report });
+  const notIdentifiedItems = missingDataItemsForSegment(inferredSegment);
 
   const positiveItems = [];
   if (hasVacancy && documentalNumber(properties.vacancyRate) <= 0.05) {
@@ -1987,7 +2072,7 @@ function buildDocumentalAssistedReading({
       id: "missing-data",
       title: "Dados não identificados nos documentos",
       status: "attention",
-      text: "Itens buscados pelo laboratório que ainda dependem de relatório gerencial, DRE/informe mais completo ou extração documental futura.",
+      text: `Itens buscados pelo laboratório para ${inferredSegment.replace("-", " ")} que ainda dependem de relatório gerencial, DRE/informe mais completo ou extração documental futura.`,
       items: notIdentifiedItems.map((item) => documentalListItem(item, DOCUMENTAL_NOT_IDENTIFIED)),
     }),
   ];

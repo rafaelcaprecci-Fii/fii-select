@@ -166,10 +166,25 @@ test("laboratório documental é interno, read-only e sanitizado", async (contex
   assert.ok(body.assistedReading.some((block) => block.id === "positive-points" && block.items.some((item) => item.support?.length)));
   assert.ok(body.assistedReading.some((block) => block.id === "risks" && block.items.some((item) => item.support?.length)));
   assert.ok(body.assistedReading.some((block) => block.id === "non-recurring-events" && /Nenhum evento não recorrente/.test(block.text)));
+  const missingData = body.assistedReading.find((block) => block.id === "missing-data");
+  assert.ok(missingData.items.some((item) => item.title === "tipo de contrato típico/atípico"));
+  assert.ok(missingData.items.some((item) => item.title === "principais inquilinos"));
+  assert.ok(missingData.items.some((item) => item.title === "concentração por inquilino"));
+  assert.ok(!missingData.items.some((item) => item.title === "vendas dos lojistas"));
+  assert.ok(!missingData.items.some((item) => item.title === "fluxo de visitantes"));
   assert.doesNotMatch(JSON.stringify(body.assistedReading), /\b(compre|venda|recomendado|melhor fundo|oportunidade|garantia|preço-alvo)\b/i);
   assert.doesNotMatch(serialized, /fake-brapi-token|ADMIN_PASSWORD|admin-test|password-test|\/api\/v2\/fii\/indicators|\/api\/v2\/fii\/reports|\/api\/v2\/fii\/dividends/i);
 
   assert.equal(await readFile(usersPath, "utf8"), usersContent);
   assert.equal(await readFile(searchesPath, "utf8"), searchesContent);
   assert.equal(await readFile(comparisonsPath, "utf8"), comparisonsContent);
+});
+
+test("dados não identificados são segmentados por tipo de fundo", async () => {
+  const server = await readFile(new URL("../server.mjs", import.meta.url), "utf8");
+
+  assert.match(server, /shopping:[\s\S]*"vendas dos lojistas"[\s\S]*"fluxo de visitantes"/);
+  assert.match(server, /papel:[\s\S]*"devedores"[\s\S]*"garantias"[\s\S]*"eventos de crédito"/);
+  assert.match(server, /"lajes-corporativas":[\s\S]*"concentração percentual por locatário individual"[\s\S]*"WALE por receita"/);
+  assert.match(server, /multicategoria\|multiestrategia/);
 });
