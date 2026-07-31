@@ -1,0 +1,29 @@
+[
+  {
+    "ticker": "JSRE11",
+    "competencia": "2026-06",
+    "tipoEvento": "rendimento",
+    "classificacao": "atencao",
+    "titulo": "Rendimento do mês",
+    "descricao": "Evento modelo para registrar a origem do rendimento quando identificada nos documentos.",
+    "fonte": {
+      "tipo": "relatorio-gerencial",
+      "nomeArquivoEsperado": "JSRE11_2026-06_relatorio-gerencial_v1.pdf"
+    },
+    "status": "rascunho"
+  },
+  {
+    "ticker": "JSRE11",
+    "competencia": "2026-06",
+    "tipoEvento": "portfolio",
+    "classificacao": "positivo",
+    "titulo": "Atualização do portfólio",
+    "descricao": "Evento modelo para registrar mudança relevante de portfólio quando identificada nos documentos.",
+    "fonte": {
+      "tipo": "informe-mensal",
+      "nomeArquivoEsperado": "JSRE11_2026-06_informe-mensal_v1.pdf"
+    },
+    "status": "rascunho"
+  }
+]
+

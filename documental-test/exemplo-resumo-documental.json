@@ -1,0 +1,57 @@
+{
+  "ticker": "JSRE11",
+  "competencia": "2026-06",
+  "segmento": "Lajes",
+  "status": "rascunho",
+  "resumoMes": {
+    "texto": "Resumo do mês não identificado nos documentos analisados.",
+    "fontes": []
+  },
+  "rendimentoOrigemDy": {
+    "texto": "Dado não identificado nos documentos analisados.",
+    "fontes": []
+  },
+  "portfolioQualidadeAtivos": {
+    "texto": "Dado não identificado nos documentos analisados.",
+    "fontes": []
+  },
+  "contratosInquilinos": {
+    "texto": "Dado não identificado nos documentos analisados.",
+    "fontes": []
+  },
+  "obrasExpansoes": {
+    "texto": "Dado não identificado nos documentos analisados.",
+    "fontes": []
+  },
+  "estrategiaVsPortfolio": {
+    "texto": "Dado não identificado nos documentos analisados.",
+    "fontes": []
+  },
+  "estruturaCapitalAlavancagem": {
+    "texto": "Dado não identificado nos documentos analisados.",
+    "fontes": []
+  },
+  "historicoEmissoes": {
+    "texto": "Dado não identificado nos documentos analisados.",
+    "fontes": []
+  },
+  "pontosPositivos": [],
+  "pontosAtencao": [],
+  "eventosNaoRecorrentes": [],
+  "dadosNaoIdentificados": [],
+  "fontes": [
+    {
+      "tipo": "relatorio-gerencial",
+      "nomeArquivoEsperado": "JSRE11_2026-06_relatorio-gerencial_v1.pdf",
+      "origem": "Google Drive 2Bold"
+    },
+    {
+      "tipo": "informe-mensal",
+      "nomeArquivoEsperado": "JSRE11_2026-06_informe-mensal_v1.pdf",
+      "origem": "Google Drive 2Bold"
+    }
+  ],
+  "createdAt": "2026-07-30T00:00:00.000Z",
+  "updatedAt": "2026-07-30T00:00:00.000Z"
+}
+

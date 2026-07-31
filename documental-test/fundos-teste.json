@@ -1,0 +1,57 @@
+[
+  {
+    "ticker": "JSRE11",
+    "segmento": "Lajes",
+    "pastaDriveEsperada": "FII Select/Documental/JSRE11/2026-06",
+    "documentosEsperados": [
+      "relatorio-gerencial",
+      "informe-mensal"
+    ]
+  },
+  {
+    "ticker": "PVBI11",
+    "segmento": "Lajes",
+    "pastaDriveEsperada": "FII Select/Documental/PVBI11/2026-06",
+    "documentosEsperados": [
+      "relatorio-gerencial",
+      "informe-mensal"
+    ]
+  },
+  {
+    "ticker": "HGLG11",
+    "segmento": "Logística",
+    "pastaDriveEsperada": "FII Select/Documental/HGLG11/2026-06",
+    "documentosEsperados": [
+      "relatorio-gerencial",
+      "informe-mensal"
+    ]
+  },
+  {
+    "ticker": "BTLG11",
+    "segmento": "Logística",
+    "pastaDriveEsperada": "FII Select/Documental/BTLG11/2026-06",
+    "documentosEsperados": [
+      "relatorio-gerencial",
+      "informe-mensal"
+    ]
+  },
+  {
+    "ticker": "VISC11",
+    "segmento": "Shopping",
+    "pastaDriveEsperada": "FII Select/Documental/VISC11/2026-06",
+    "documentosEsperados": [
+      "relatorio-gerencial",
+      "informe-mensal"
+    ]
+  },
+  {
+    "ticker": "XPML11",
+    "segmento": "Shopping",
+    "pastaDriveEsperada": "FII Select/Documental/XPML11/2026-06",
+    "documentosEsperados": [
+      "relatorio-gerencial",
+      "informe-mensal"
+    ]
+  }
+]
+
