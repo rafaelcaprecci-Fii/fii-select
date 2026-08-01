@@ -42,6 +42,14 @@ import {
   auditedTestUserCleanupConfirmation,
   removeAuditedTestUsers,
 } from "./lib/audited-test-user-cleanup.mjs";
+import {
+  addDocumentalTimelineEvent,
+  documentalHistoryForTicker,
+  documentalSourcesForTicker,
+  documentalTimelineForTicker,
+  upsertDocumentalHistory,
+  upsertDocumentalSources,
+} from "./lib/documental-store.mjs";
 
 const root = fileURLToPath(new URL(".", import.meta.url));
 const publicDir = join(root, "public");
@@ -59,6 +67,21 @@ const userComparisonsFile = resolveJsonDataPath({
   rootDir: root,
   configuredPath: process.env.USER_COMPARISONS_PATH,
   fallbackRelativePath: join("data", "user-comparisons.json"),
+});
+const documentalHistoryFile = resolveJsonDataPath({
+  rootDir: root,
+  configuredPath: process.env.DOCUMENTAL_HISTORY_PATH,
+  fallbackRelativePath: join("data", "fund-documental-history.json"),
+});
+const documentalTimelineFile = resolveJsonDataPath({
+  rootDir: root,
+  configuredPath: process.env.DOCUMENTAL_TIMELINE_PATH,
+  fallbackRelativePath: join("data", "fund-timeline-events.json"),
+});
+const documentalSourcesFile = resolveJsonDataPath({
+  rootDir: root,
+  configuredPath: process.env.DOCUMENTAL_SOURCES_PATH,
+  fallbackRelativePath: join("data", "fund-document-sources.json"),
 });
 const port = Number(process.env.PORT || 4173);
 const host = process.env.HOST || "127.0.0.1";
@@ -1795,6 +1818,37 @@ function buildDocumentalSources(ticker) {
   };
 }
 
+function mergePersistentDocumentalSources(baseSources, savedSources) {
+  if (!savedSources) return baseSources;
+  return {
+    ticker: baseSources.ticker || savedSources.ticker || null,
+    official: savedSources.fonteOficialNome || savedSources.fonteOficialUrl
+      ? {
+        name: savedSources.fonteOficialNome || "Fonte oficial",
+        ...(savedSources.fonteOficialUrl ? { url: savedSources.fonteOficialUrl } : {}),
+      }
+      : baseSources.official,
+    regulatory: savedSources.fonteRegulatoriaNome || savedSources.fonteRegulatoriaUrl
+      ? {
+        name: savedSources.fonteRegulatoriaNome || "Fonte regulatória",
+        ...(savedSources.fonteRegulatoriaUrl ? { url: savedSources.fonteRegulatoriaUrl } : {}),
+      }
+      : baseSources.regulatory,
+    shortcut: savedSources.atalhoConsultaNome || savedSources.atalhoConsultaUrl
+      ? {
+        name: savedSources.atalhoConsultaNome || "Atalho de consulta",
+        ...(savedSources.atalhoConsultaUrl ? { url: savedSources.atalhoConsultaUrl } : {}),
+      }
+      : baseSources.shortcut,
+    driveFolder: savedSources.driveFolderUrl
+      ? {
+        name: "Pasta Drive",
+        url: savedSources.driveFolderUrl,
+      }
+      : null,
+  };
+}
+
 function documentalSupport(label, key, value, source) {
   if (value === undefined || value === null || value === "") return null;
   return { label, key, value, ...source };
@@ -2350,7 +2404,14 @@ async function documentalLab(ticker) {
     includeCdi: false,
     internalEndpoint: "/admin/api/documental-lab",
   });
-  return buildDocumentalLab(diagnostic);
+  const result = buildDocumentalLab(diagnostic);
+  try {
+    const savedSources = await documentalSourcesForTicker(documentalSourcesFile, ticker);
+    result.documentalSources = mergePersistentDocumentalSources(result.documentalSources, savedSources);
+  } catch {
+    // Fonte persistida ausente ou inválida não deve quebrar a consulta diagnóstica.
+  }
+  return result;
 }
 
 async function crossedReading(ticker) {
@@ -2790,6 +2851,72 @@ const server = http.createServer(async (req, res) => {
         return json(res, result.status.brapiTokenConfigured ? 200 : 503, result);
       }
 
+      if (url.pathname === "/admin/api/documental-history") {
+        if (req.method === "GET") {
+          try {
+            const ticker = url.searchParams.get("ticker") || url.searchParams.get("Ticker") || "";
+            const history = await documentalHistoryForTicker(documentalHistoryFile, ticker);
+            return json(res, 200, { ok: true, ticker: String(ticker).trim().toUpperCase(), history });
+          } catch (error) {
+            return json(res, 400, { ok: false, error: error.message || "Histórico documental inválido." });
+          }
+        }
+        if (req.method === "POST") {
+          try {
+            const body = await readJsonBody(req);
+            const result = await upsertDocumentalHistory(documentalHistoryFile, body);
+            return json(res, result.created ? 201 : 200, { ok: true, ...result });
+          } catch (error) {
+            return json(res, 400, { ok: false, error: error.message || "Não foi possível salvar o histórico documental." });
+          }
+        }
+        return json(res, 405, { ok: false, error: "Método não permitido." });
+      }
+
+      if (url.pathname === "/admin/api/documental-timeline") {
+        if (req.method === "GET") {
+          try {
+            const ticker = url.searchParams.get("ticker") || url.searchParams.get("Ticker") || "";
+            const events = await documentalTimelineForTicker(documentalTimelineFile, ticker);
+            return json(res, 200, { ok: true, ticker: String(ticker).trim().toUpperCase(), events });
+          } catch (error) {
+            return json(res, 400, { ok: false, error: error.message || "Linha do tempo documental inválida." });
+          }
+        }
+        if (req.method === "POST") {
+          try {
+            const body = await readJsonBody(req);
+            const event = await addDocumentalTimelineEvent(documentalTimelineFile, body);
+            return json(res, 201, { ok: true, event });
+          } catch (error) {
+            return json(res, 400, { ok: false, error: error.message || "Não foi possível salvar o evento documental." });
+          }
+        }
+        return json(res, 405, { ok: false, error: "Método não permitido." });
+      }
+
+      if (url.pathname === "/admin/api/documental-sources") {
+        if (req.method === "GET") {
+          try {
+            const ticker = url.searchParams.get("ticker") || url.searchParams.get("Ticker") || "";
+            const sources = await documentalSourcesForTicker(documentalSourcesFile, ticker);
+            return json(res, 200, { ok: true, ticker: String(ticker).trim().toUpperCase(), sources });
+          } catch (error) {
+            return json(res, 400, { ok: false, error: error.message || "Fontes documentais inválidas." });
+          }
+        }
+        if (req.method === "POST") {
+          try {
+            const body = await readJsonBody(req);
+            const result = await upsertDocumentalSources(documentalSourcesFile, body);
+            return json(res, result.created ? 201 : 200, { ok: true, ...result });
+          } catch (error) {
+            return json(res, 400, { ok: false, error: error.message || "Não foi possível salvar as fontes documentais." });
+          }
+        }
+        return json(res, 405, { ok: false, error: "Método não permitido." });
+      }
+
       if (url.pathname === "/admin/api/maintenance/brapi-usage") {
         if (req.method !== "GET") {
           return json(res, 405, { ok: false, error: "Método não permitido." });
@@ -3081,6 +3208,9 @@ await Promise.all([
   ensureUsersFile(usersFile),
   ensureJsonFile(fiiSearchLogFile, []),
   ensureJsonFile(userComparisonsFile, []),
+  ensureJsonFile(documentalHistoryFile, []),
+  ensureJsonFile(documentalTimelineFile, []),
+  ensureJsonFile(documentalSourcesFile, []),
 ]);
 
 server.listen(port, host, () => {

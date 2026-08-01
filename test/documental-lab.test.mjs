@@ -58,6 +58,9 @@ test("laboratório documental é interno, read-only e sanitizado", async (contex
   const usersPath = join(directory, "users.json");
   const searchesPath = join(directory, "fii-searches.json");
   const comparisonsPath = join(directory, "user-comparisons.json");
+  const documentalHistoryPath = join(directory, "fund-documental-history.json");
+  const documentalTimelinePath = join(directory, "fund-timeline-events.json");
+  const documentalSourcesPath = join(directory, "fund-document-sources.json");
   const preloadPath = join(directory, "mock-fetch.mjs");
   const usersContent = JSON.stringify(
     [{ id: "u1", name: "Admin Teste", email: "admin@example.com", status: "active" }],
@@ -105,6 +108,9 @@ test("laboratório documental é interno, read-only e sanitizado", async (contex
       USERS_DATA_PATH: usersPath,
       FII_SEARCH_LOG_PATH: searchesPath,
       USER_COMPARISONS_PATH: comparisonsPath,
+      DOCUMENTAL_HISTORY_PATH: documentalHistoryPath,
+      DOCUMENTAL_TIMELINE_PATH: documentalTimelinePath,
+      DOCUMENTAL_SOURCES_PATH: documentalSourcesPath,
       ADMIN_USER: "admin-test",
       ADMIN_PASSWORD: "password-test",
       BRAPI_TOKEN: "fake-brapi-token",
@@ -181,6 +187,170 @@ test("laboratório documental é interno, read-only e sanitizado", async (contex
   assert.ok(!missingData.items.some((item) => item.title === "fluxo de visitantes"));
   assert.doesNotMatch(JSON.stringify(body.assistedReading), /\b(compre|venda|recomendado|melhor fundo|oportunidade|garantia|preço-alvo)\b/i);
   assert.doesNotMatch(serialized, /fake-brapi-token|ADMIN_PASSWORD|admin-test|password-test|\/api\/v2\/fii\/indicators|\/api\/v2\/fii\/reports|\/api\/v2\/fii\/dividends/i);
+
+  assert.equal(await readFile(usersPath, "utf8"), usersContent);
+  assert.equal(await readFile(searchesPath, "utf8"), searchesContent);
+  assert.equal(await readFile(comparisonsPath, "utf8"), comparisonsContent);
+});
+
+test("rotas administrativas persistem histórico, timeline e fontes documentais", async (context) => {
+  const directory = await mkdtemp(join(tmpdir(), "fii-select-documental-store-"));
+  const usersPath = join(directory, "users.json");
+  const searchesPath = join(directory, "fii-searches.json");
+  const comparisonsPath = join(directory, "user-comparisons.json");
+  const documentalHistoryPath = join(directory, "fund-documental-history.json");
+  const documentalTimelinePath = join(directory, "fund-timeline-events.json");
+  const documentalSourcesPath = join(directory, "fund-document-sources.json");
+  const usersContent = JSON.stringify([{ id: "u1", name: "Admin Teste", email: "admin@example.com", status: "active" }]);
+  const searchesContent = JSON.stringify([{ userId: "u1", ticker: "HGLG11", searchedAt: "2026-07-01T00:00:00.000Z" }]);
+  const comparisonsContent = JSON.stringify([{ userId: "u1", tickers: ["HGLG11"] }]);
+  await writeFile(usersPath, usersContent);
+  await writeFile(searchesPath, searchesContent);
+  await writeFile(comparisonsPath, comparisonsContent);
+
+  const port = await availablePort();
+  const child = spawn(process.execPath, ["server.mjs"], {
+    cwd: root,
+    env: {
+      ...process.env,
+      HOST: "127.0.0.1",
+      PORT: String(port),
+      USERS_DATA_PATH: usersPath,
+      FII_SEARCH_LOG_PATH: searchesPath,
+      USER_COMPARISONS_PATH: comparisonsPath,
+      DOCUMENTAL_HISTORY_PATH: documentalHistoryPath,
+      DOCUMENTAL_TIMELINE_PATH: documentalTimelinePath,
+      DOCUMENTAL_SOURCES_PATH: documentalSourcesPath,
+      ADMIN_USER: "admin-test",
+      ADMIN_PASSWORD: "password-test",
+      NODE_ENV: "test",
+    },
+    stdio: "ignore",
+  });
+  const baseUrl = `http://127.0.0.1:${port}`;
+  const auth = `Basic ${Buffer.from("admin-test:password-test").toString("base64")}`;
+  context.after(async () => {
+    child.kill("SIGTERM");
+    await rm(directory, { recursive: true, force: true });
+  });
+  await waitForServer(baseUrl, child);
+
+  const unauthenticatedHistory = await fetch(`${baseUrl}/admin/api/documental-history?ticker=JSRE11`);
+  assert.equal(unauthenticatedHistory.status, 401);
+
+  const emptyHistory = await fetch(`${baseUrl}/admin/api/documental-history?ticker=JSRE11`, {
+    headers: { Authorization: auth },
+  });
+  assert.equal(emptyHistory.status, 200);
+  assert.deepEqual((await emptyHistory.json()).history, []);
+
+  const historyPayload = {
+    ticker: "JSRE11",
+    competencia: "2026-06",
+    segmento: "Lajes / Multiestratégia",
+    status: "analisado",
+    fontes: { official: { name: "Safra Asset" } },
+    resumoMes: "Resumo inicial",
+    rendimentoOrigemDy: "Rendimento validado",
+    portfolioQualidadeAtivos: "Portfólio corporativo",
+    contratosInquilinos: "Dado não identificado nos documentos analisados.",
+    obrasExpansoes: "Dado não identificado nos documentos analisados.",
+    estrategiaVsPortfolio: "Estratégia coerente com lajes.",
+    tipoGestao: "Ativa",
+    estruturaCapitalAlavancagem: "Alavancagem sob acompanhamento.",
+    historicoEmissoes: "Sem emissão identificada.",
+    pontosPositivos: "Vacância menor.",
+    pontosAtencao: "Concentração a validar.",
+    eventosNaoRecorrentes: "Nenhum evento não recorrente identificado.",
+    dadosNaoIdentificados: "WALE por receita.",
+    explicacaoFinanceiraAquisicoes: "Dado não identificado nos documentos analisados.",
+  };
+  const createHistory = await fetch(`${baseUrl}/admin/api/documental-history`, {
+    method: "POST",
+    headers: { Authorization: auth, "Content-Type": "application/json" },
+    body: JSON.stringify(historyPayload),
+  });
+  assert.equal(createHistory.status, 201);
+  const createdHistory = await createHistory.json();
+  assert.equal(createdHistory.ok, true);
+  assert.equal(createdHistory.record.ticker, "JSRE11");
+  assert.equal(createdHistory.record.competencia, "2026-06");
+  assert.doesNotMatch(JSON.stringify(createdHistory), /\.pdf|password|token|ADMIN_PASSWORD/i);
+  const originalCreatedAt = createdHistory.record.createdAt;
+  await new Promise((resolve) => setTimeout(resolve, 10));
+
+  const updateHistory = await fetch(`${baseUrl}/admin/api/documental-history`, {
+    method: "POST",
+    headers: { Authorization: auth, "Content-Type": "application/json" },
+    body: JSON.stringify({ ...historyPayload, resumoMes: "Resumo atualizado" }),
+  });
+  assert.equal(updateHistory.status, 200);
+  const updatedHistory = await updateHistory.json();
+  assert.equal(updatedHistory.created, false);
+  assert.equal(updatedHistory.record.createdAt, originalCreatedAt);
+  assert.notEqual(updatedHistory.record.updatedAt, originalCreatedAt);
+  assert.equal(updatedHistory.record.resumoMes, "Resumo atualizado");
+
+  const savedHistory = await fetch(`${baseUrl}/admin/api/documental-history?ticker=JSRE11`, {
+    headers: { Authorization: auth },
+  });
+  const savedHistoryBody = await savedHistory.json();
+  assert.equal(savedHistoryBody.history.length, 1);
+  assert.equal(JSON.parse(await readFile(documentalHistoryPath, "utf8")).length, 1);
+
+  const createEvent = await fetch(`${baseUrl}/admin/api/documental-timeline`, {
+    method: "POST",
+    headers: { Authorization: auth, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      ticker: "JSRE11",
+      competencia: "2026-06",
+      tipoEvento: "Vacância",
+      classificacao: "Atenção",
+      titulo: "WT Morumbi segue em negociação",
+      descricao: "Evento registrado para acompanhamento.",
+      fonte: "Relatório gerencial",
+      status: "analisado",
+    }),
+  });
+  assert.equal(createEvent.status, 201);
+  const timeline = await fetch(`${baseUrl}/admin/api/documental-timeline?ticker=JSRE11`, {
+    headers: { Authorization: auth },
+  });
+  const timelineBody = await timeline.json();
+  assert.equal(timelineBody.events.length, 1);
+  assert.equal(timelineBody.events[0].tipoEvento, "Vacância");
+
+  const createSources = await fetch(`${baseUrl}/admin/api/documental-sources`, {
+    method: "POST",
+    headers: { Authorization: auth, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      ticker: "JSRE11",
+      fonteOficialNome: "Safra Asset",
+      fonteOficialUrl: "https://www.safra.com.br/safra-asset/fundo-imobiliario/js-real-estate.htm",
+      fonteRegulatoriaNome: "FNET / CVM",
+      fonteRegulatoriaUrl: "",
+      atalhoConsultaNome: "Clube FII",
+      atalhoConsultaUrl: "https://www.clubefii.com.br/fiis/JSRE11",
+      driveFolderUrl: "https://drive.google.com/drive/folders/exemplo",
+    }),
+  });
+  assert.equal(createSources.status, 201);
+  const updateSources = await fetch(`${baseUrl}/admin/api/documental-sources`, {
+    method: "POST",
+    headers: { Authorization: auth, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      ticker: "jsre11",
+      fonteOficialNome: "Safra Asset",
+      atalhoConsultaNome: "Clube FII",
+    }),
+  });
+  assert.equal(updateSources.status, 200);
+  const sources = await fetch(`${baseUrl}/admin/api/documental-sources?ticker=JSRE11`, {
+    headers: { Authorization: auth },
+  });
+  const sourcesBody = await sources.json();
+  assert.equal(sourcesBody.sources.fonteOficialNome, "Safra Asset");
+  assert.equal(JSON.parse(await readFile(documentalSourcesPath, "utf8")).length, 1);
 
   assert.equal(await readFile(usersPath, "utf8"), usersContent);
   assert.equal(await readFile(searchesPath, "utf8"), searchesContent);
