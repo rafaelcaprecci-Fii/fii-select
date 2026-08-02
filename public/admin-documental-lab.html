@@ -182,8 +182,30 @@
 
       .documental-source-grid {
         display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 12px;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 8px;
+      }
+
+      .documental-source-grid .documental-lab-card {
+        gap: 4px;
+        padding: 10px 12px;
+        border-radius: 12px;
+      }
+
+      .documental-source-grid .documental-lab-card small {
+        font-size: 11px;
+      }
+
+      .documental-source-grid .documental-lab-card strong {
+        margin: 0;
+        font-size: 13px;
+        line-height: 1.25;
+      }
+
+      .documental-source-grid .documental-lab-card span,
+      .documental-source-grid .documental-lab-card a {
+        font-size: 12px;
+        line-height: 1.25;
       }
 
       .documental-lab-status {
@@ -289,24 +311,9 @@
           <div class="documental-source-grid" data-documental-sources></div>
         </section>
 
-        <section class="documental-lab-panel">
-          <h2>Histórico documental</h2>
-          <ul class="documental-lab-list" data-documental-history></ul>
-        </section>
-
-        <section class="documental-lab-panel">
-          <h2>Linha do tempo documental</h2>
-          <ul class="documental-lab-list" data-documental-timeline></ul>
-        </section>
-
-        <section class="documental-lab-panel">
-          <h2>Documentos / Relatórios disponíveis</h2>
-          <ul class="documental-lab-list" data-documental-documents></ul>
-        </section>
-
-        <section class="documental-lab-panel">
-          <h2>Pontos de atenção documentais</h2>
-          <ul class="documental-lab-list" data-documental-checks></ul>
+        <section class="documental-lab-panel is-wide">
+          <h2>Variação no número de cotistas</h2>
+          <ul class="documental-lab-list" data-documental-investors-variation></ul>
         </section>
       </section>
     </main>

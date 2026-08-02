@@ -19,13 +19,18 @@ test("interface do laboratório documental oculta fonte técnica e usa flags ami
   assert.match(interfaceSource, /Preocupante/);
   assert.match(interfaceSource, /Atenção/);
   assert.match(interfaceSource, /Positivo/);
-  assert.match(interfaceSource, /URL não informada/);
-  assert.match(interfaceSource, /Abrir documento/);
+  assert.match(interfaceSource, /Variação no número de cotistas/);
   assert.match(interfaceSource, /Leitura documental assistida/);
   assert.match(interfaceSource, /data-documental-assisted/);
   assert.match(interfaceSource, /Fontes documentais/);
   assert.match(interfaceSource, /data-documental-sources/);
-  assert.match(interfaceSource, /Fonte oficial não cadastrada\./);
+  assert.match(interfaceSource, /data-documental-investors-variation/);
+  assert.match(interfaceSource, /Abrir/);
+  assert.match(interfaceSource, /Não cadastrado/);
+  assert.doesNotMatch(interfaceSource, /Documentos \/ Relatórios disponíveis/);
+  assert.doesNotMatch(interfaceSource, /Pontos de atenção documentais/);
+  assert.doesNotMatch(interfaceSource, /<h2>Histórico documental<\/h2>/);
+  assert.doesNotMatch(interfaceSource, /<h2>Linha do tempo documental<\/h2>/);
 });
 
 async function availablePort() {

@@ -5,10 +5,7 @@ const summary = document.querySelector("[data-documental-summary]");
 const facts = document.querySelector("[data-documental-facts]");
 const assisted = document.querySelector("[data-documental-assisted]");
 const documentalSources = document.querySelector("[data-documental-sources]");
-const documentalHistory = document.querySelector("[data-documental-history]");
-const documentalTimeline = document.querySelector("[data-documental-timeline]");
-const documents = document.querySelector("[data-documental-documents]");
-const checks = document.querySelector("[data-documental-checks]");
+const investorsVariation = document.querySelector("[data-documental-investors-variation]");
 const saveHistoryButton = document.querySelector("[data-save-documental-history]");
 
 let currentDocumentalData = null;
@@ -96,44 +93,8 @@ function sourceCard(label, source, fallback) {
     <article class="documental-lab-card">
       <small>${escapeHtml(label)}</small>
       <strong>${escapeHtml(name)}</strong>
-      ${url ? `<a class="documental-lab-link" href="${escapeHtml(url)}" target="_blank" rel="noopener">Abrir fonte</a>` : "<span>Link não cadastrado.</span>"}
+      ${url ? `<a class="documental-lab-link" href="${escapeHtml(url)}" target="_blank" rel="noopener">Abrir</a>` : "<span>Não cadastrado</span>"}
     </article>
-  `;
-}
-
-function historyItem(item) {
-  return `
-    <li class="documental-lab-card">
-      <small>${escapeHtml(item.ticker || "Ticker")}</small>
-      <strong>${escapeHtml(formatDate(item.competencia))} — ${escapeHtml(item.status || "analisado")}</strong>
-      <span>Atualizado em: ${escapeHtml(item.updatedAt ? new Date(item.updatedAt).toLocaleString("pt-BR") : "Não informado")}</span>
-    </li>
-  `;
-}
-
-function timelineItem(item) {
-  return `
-    <li class="documental-lab-card">
-      <span class="documental-lab-status ${statusFlag(String(item.classificacao || "").toLowerCase() === "preocupante" ? "concerning" : String(item.classificacao || "").toLowerCase() === "positivo" ? "positive" : "attention").className}">${escapeHtml(item.classificacao || "Neutro")}</span>
-      <strong>${escapeHtml(formatDate(item.competencia))} — ${escapeHtml(item.titulo || item.tipoEvento || "Evento documental")}</strong>
-      <span>${escapeHtml(item.descricao || "Dado não identificado nos documentos analisados.")}</span>
-      <span>Fonte: ${escapeHtml(item.fonte || "Não informada")}</span>
-    </li>
-  `;
-}
-
-function documentItem(document) {
-  const href = document.url || document.documentUrl || document.downloadUrl || "";
-  const status = href ? "Documento disponível" : "URL não informada";
-
-  return `
-    <li class="documental-lab-card">
-      <small>${escapeHtml(document.type || "Documento")}</small>
-      <strong>${escapeHtml(document.competence ? formatDate(document.competence) : "Competência não informada")}</strong>
-      <span>Fonte: ${escapeHtml(document.source || "Dados estruturados CVM")}</span>
-      <span>Status: ${escapeHtml(document.status || status)}</span>
-      ${href ? `<a class="documental-lab-link" href="${escapeHtml(href)}" target="_blank" rel="noopener">Abrir documento</a>` : "<span>URL não informada</span>"}
-    </li>
   `;
 }
 
@@ -220,7 +181,7 @@ function buildHistoryPayload(data) {
 }
 
 async function loadDocumentalHistory(ticker) {
-  if (!documentalHistory) return;
+  return;
   const response = await fetch(`/admin/api/documental-history?ticker=${encodeURIComponent(ticker)}`);
   const data = await response.json();
   if (!response.ok) throw new Error(data.error || "Não foi possível consultar o histórico documental.");
@@ -229,7 +190,7 @@ async function loadDocumentalHistory(ticker) {
 }
 
 async function loadDocumentalTimeline(ticker) {
-  if (!documentalTimeline) return;
+  return;
   const response = await fetch(`/admin/api/documental-timeline?ticker=${encodeURIComponent(ticker)}`);
   const data = await response.json();
   if (!response.ok) throw new Error(data.error || "Não foi possível consultar a linha do tempo documental.");
@@ -255,15 +216,15 @@ function render(data) {
     '<p class="documental-lab-message">Dado não identificado nos documentos analisados.</p>';
   const sources = data.documentalSources || {};
   documentalSources.innerHTML = [
-    sourceCard("Fonte oficial", sources.official, "Fonte oficial não cadastrada."),
+    sourceCard("Fonte oficial", sources.official, "Não cadastrado"),
     sourceCard("Fonte regulatória", sources.regulatory, "FNET / CVM"),
     sourceCard("Atalho de consulta", sources.shortcut, "Clube FII"),
-    sourceCard("Pasta Drive", sources.driveFolder, "Pasta Drive não cadastrada."),
+    sourceCard("Pasta Drive", sources.driveFolder, "Não cadastrado"),
   ].join("");
-  documents.innerHTML = (data.documents || []).map(documentItem).join("") ||
-    '<li class="documental-lab-card"><strong>Nenhum documento informado</strong><span>Não informado.</span></li>';
-  checks.innerHTML = (data.checks || []).map(checkItem).join("") ||
-    '<li class="documental-lab-card"><strong>Dados insuficientes</strong><span>Dados insuficientes para esta checagem.</span></li>';
+  const investorsCheck = (data.checks || []).find((check) => check.id === "investors-variation");
+  investorsVariation.innerHTML = investorsCheck
+    ? checkItem(investorsCheck)
+    : '<li class="documental-lab-card"><strong>Variação no número de cotistas</strong><span>Dados insuficientes para esta checagem.</span></li>';
   resultSection.hidden = false;
 }
 
@@ -300,10 +261,6 @@ form?.addEventListener("submit", async (event) => {
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "Não foi possível consultar o laboratório documental.");
     render(data);
-    await Promise.all([
-      loadDocumentalHistory(data.ticker),
-      loadDocumentalTimeline(data.ticker),
-    ]);
     message.textContent = "Consulta concluída. Use os dados apenas para auditoria interna.";
   } catch (error) {
     resultSection.hidden = true;
