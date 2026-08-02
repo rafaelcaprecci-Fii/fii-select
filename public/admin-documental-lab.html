@@ -28,10 +28,8 @@
       }
 
       .documental-lab-header {
-        display: flex;
-        justify-content: space-between;
+        display: grid;
         gap: 24px;
-        align-items: center;
         padding: 24px;
         margin-bottom: 20px;
       }
@@ -99,7 +97,7 @@
 
       .documental-lab-grid {
         display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-columns: 1fr;
         gap: 20px;
       }
 
@@ -109,6 +107,10 @@
 
       .documental-lab-panel.is-wide {
         grid-column: 1 / -1;
+      }
+
+      .documental-lab-panel.is-secondary {
+        background: #fbfcfd;
       }
 
       .documental-lab-panel h2 {
@@ -160,12 +162,26 @@
 
       .documental-assisted-grid {
         display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-columns: 1fr;
         gap: 12px;
       }
 
       .documental-assisted-card {
         min-width: 0;
+      }
+
+      .documental-assisted-card strong {
+        font-size: 18px;
+        line-height: 1.35;
+      }
+
+      .documental-assisted-card p {
+        margin: 0;
+        color: #587080;
+        font-size: 15px;
+        line-height: 1.65;
+        white-space: pre-line;
+        overflow-wrap: anywhere;
       }
 
       .documental-assisted-card ul {
@@ -182,7 +198,7 @@
 
       .documental-source-grid {
         display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
+        grid-template-columns: repeat(4, minmax(0, 1fr));
         gap: 12px;
       }
 
@@ -250,8 +266,7 @@
           <p class="eyebrow">Admin • área teste</p>
           <h1>Laboratório documental</h1>
           <p>
-            Consulta interna read-only para validar metadados, dados estruturados e pontos de atenção documentais.
-            Não usa IA, scraping, OCR ou download em massa de PDFs.
+            Área interna para leitura, revisão e armazenamento de análises documentais dos FIIs.
           </p>
         </div>
         <form class="documental-lab-form" data-documental-form>
@@ -259,7 +274,7 @@
             Ticker
             <input name="ticker" value="HGLG11" maxlength="6" autocomplete="off" required />
           </label>
-          <button type="submit">Consultar</button>
+          <button type="submit">Buscar</button>
         </form>
       </header>
 
@@ -267,21 +282,26 @@
 
       <section class="documental-lab-grid" data-documental-result hidden>
         <section class="documental-lab-panel is-wide">
-          <h2>Resumo do fundo</h2>
+          <h2>Dados da consulta</h2>
           <div class="documental-lab-facts" data-documental-summary></div>
         </section>
 
         <section class="documental-lab-panel is-wide">
-          <h2>Dados estruturados do último período</h2>
-          <div class="documental-lab-facts" data-documental-facts></div>
-        </section>
-
-        <section class="documental-lab-panel is-wide">
-          <h2>Leitura documental assistida</h2>
+          <h2>Resumo documental</h2>
+          <div class="documental-assisted-grid" data-documental-assisted></div>
           <div class="documental-lab-actions">
             <button type="button" data-save-documental-history>Salvar resumo no histórico documental</button>
           </div>
-          <div class="documental-assisted-grid" data-documental-assisted></div>
+        </section>
+
+        <section class="documental-lab-panel is-wide">
+          <h2>Histórico documental</h2>
+          <ul class="documental-lab-list" data-documental-history></ul>
+        </section>
+
+        <section class="documental-lab-panel is-wide">
+          <h2>Linha do tempo documental</h2>
+          <ul class="documental-lab-list" data-documental-timeline></ul>
         </section>
 
         <section class="documental-lab-panel is-wide">
@@ -289,22 +309,17 @@
           <div class="documental-source-grid" data-documental-sources></div>
         </section>
 
-        <section class="documental-lab-panel">
-          <h2>Histórico documental</h2>
-          <ul class="documental-lab-list" data-documental-history></ul>
+        <section class="documental-lab-panel is-secondary">
+          <h2>Dados estruturados do último período</h2>
+          <div class="documental-lab-facts" data-documental-facts></div>
         </section>
 
-        <section class="documental-lab-panel">
-          <h2>Linha do tempo documental</h2>
-          <ul class="documental-lab-list" data-documental-timeline></ul>
-        </section>
-
-        <section class="documental-lab-panel">
+        <section class="documental-lab-panel is-secondary">
           <h2>Documentos / Relatórios disponíveis</h2>
           <ul class="documental-lab-list" data-documental-documents></ul>
         </section>
 
-        <section class="documental-lab-panel">
+        <section class="documental-lab-panel is-secondary">
           <h2>Pontos de atenção documentais</h2>
           <ul class="documental-lab-list" data-documental-checks></ul>
         </section>
