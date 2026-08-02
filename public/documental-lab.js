@@ -13,24 +13,6 @@ const saveHistoryButton = document.querySelector("[data-save-documental-history]
 
 let currentDocumentalData = null;
 
-const missingDocumentalText = "Dado não identificado nos documentos analisados.";
-const documentalSummaryItems = [
-  { number: 1, title: "Resumo do mês", field: "resumoMes" },
-  { number: 2, title: "Rendimento e origem do DY", field: "rendimentoOrigemDy" },
-  { number: 3, title: "Portfólio e qualidade dos ativos", field: "portfolioQualidadeAtivos" },
-  { number: 4, title: "Contratos e inquilinos", field: "contratosInquilinos" },
-  { number: 5, title: "Obras, expansões e imóveis em desenvolvimento", field: "obrasExpansoes" },
-  { number: 6, title: "Estratégia do fundo vs portfólio atual", field: "estrategiaVsPortfolio" },
-  { number: 7, title: "Tipo de gestão", field: "tipoGestao" },
-  { number: 8, title: "Estrutura de capital e alavancagem", field: "estruturaCapitalAlavancagem" },
-  { number: 9, title: "Histórico de emissões de cotas", field: "historicoEmissoes" },
-  { number: 10, title: "Pontos positivos", field: "pontosPositivos" },
-  { number: 11, title: "Pontos de atenção / riscos", field: "pontosAtencao" },
-  { number: 12, title: "Eventos não recorrentes", field: "eventosNaoRecorrentes" },
-  { number: 13, title: "Dados não identificados nos documentos", field: "dadosNaoIdentificados" },
-  { number: 14, title: "Explicação financeira de aquisições", field: "explicacaoFinanceiraAquisicoes" },
-];
-
 const numberFormatter = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 2 });
 const integerFormatter = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
 const moneyFormatter = new Intl.NumberFormat("pt-BR", {
@@ -122,29 +104,19 @@ function sourceCard(label, source, fallback) {
 function historyItem(item) {
   return `
     <li class="documental-lab-card">
-      <small>Competência</small>
-      <strong>${escapeHtml(formatDate(item.competencia))}</strong>
-      <span>Status: ${escapeHtml(item.status || "analisado")}</span>
+      <small>${escapeHtml(item.ticker || "Ticker")}</small>
+      <strong>${escapeHtml(formatDate(item.competencia))} — ${escapeHtml(item.status || "analisado")}</strong>
       <span>Atualizado em: ${escapeHtml(item.updatedAt ? new Date(item.updatedAt).toLocaleString("pt-BR") : "Não informado")}</span>
     </li>
   `;
 }
 
 function timelineItem(item) {
-  const normalizedClassification = String(item.classificacao || "").toLowerCase();
-  const flag = statusFlag(
-    normalizedClassification === "preocupante"
-      ? "concerning"
-      : normalizedClassification === "positivo"
-        ? "positive"
-        : "attention",
-  );
   return `
     <li class="documental-lab-card">
-      <span class="documental-lab-status ${flag.className}">${escapeHtml(item.classificacao || "Neutro")}</span>
-      <small>${escapeHtml(formatDate(item.competencia))} • ${escapeHtml(item.tipoEvento || "Outro")}</small>
-      <strong>${escapeHtml(item.titulo || "Evento documental")}</strong>
-      <span>${escapeHtml(item.descricao || missingDocumentalText)}</span>
+      <span class="documental-lab-status ${statusFlag(String(item.classificacao || "").toLowerCase() === "preocupante" ? "concerning" : String(item.classificacao || "").toLowerCase() === "positivo" ? "positive" : "attention").className}">${escapeHtml(item.classificacao || "Neutro")}</span>
+      <strong>${escapeHtml(formatDate(item.competencia))} — ${escapeHtml(item.titulo || item.tipoEvento || "Evento documental")}</strong>
+      <span>${escapeHtml(item.descricao || "Dado não identificado nos documentos analisados.")}</span>
       <span>Fonte: ${escapeHtml(item.fonte || "Não informada")}</span>
     </li>
   `;
@@ -187,40 +159,35 @@ function checkItem(check) {
   `;
 }
 
-function textFromAssistedBlock(block) {
-  if (!block) return missingDocumentalText;
-  const items = (block.items || []).map((item) => `${item.title || "Item"}: ${item.text || missingDocumentalText}`);
-  const support = (block.support || []).map((item) => `${item.label}: ${formatValue(item.key || "", item.value)}`);
-  const text = [block.text, ...items, ...support].filter(Boolean).join("\n");
-  return text.trim() || missingDocumentalText;
+function supportLine(item) {
+  return `<span><b>${escapeHtml(item.label)}:</b> ${escapeHtml(formatValue(item.key || "", item.value))} • ${escapeHtml(sourceText(item))}</span>`;
 }
 
-function documentalText(data, item) {
-  const directText = String(data?.[item.field] || "").trim();
-  if (directText) return directText;
-  const block = (data.assistedReading || []).find((entry) => entry.title === item.title);
-  return textFromAssistedBlock(block);
+function assistedItem(item) {
+  const support = (item.support || []).map(supportLine).join("");
+  return `<li><b>${escapeHtml(item.title || "Item")}</b>: ${escapeHtml(item.text || "Dado não identificado nos documentos analisados.")}${support ? `<br>${support}` : ""}</li>`;
 }
 
-function assistedBlock(data, item) {
-  const text = documentalText(data, item);
+function assistedBlock(block) {
+  const flag = statusFlag(block.status);
+  const support = (block.support || []).map(supportLine).join("");
+  const items = (block.items || []).map(assistedItem).join("");
   return `
     <article class="documental-lab-card documental-assisted-card">
-      <small>${String(item.number).padStart(2, "0")}</small>
-      <strong>${escapeHtml(item.title)}</strong>
-      <p>${escapeHtml(text)}</p>
+      <span class="documental-lab-status ${flag.className}">${escapeHtml(flag.label)}</span>
+      <strong>${escapeHtml(block.title)}</strong>
+      <span>${escapeHtml(block.text || "Dado não identificado nos documentos analisados.")}</span>
+      ${support}
+      ${items ? `<ul>${items}</ul>` : ""}
     </article>
   `;
 }
 
 function assistedTextByTitle(data, title) {
   const block = (data.assistedReading || []).find((item) => item.title === title);
-  return textFromAssistedBlock(block);
-}
-
-function fieldText(data, field) {
-  const item = documentalSummaryItems.find((entry) => entry.field === field);
-  return item ? documentalText(data, item) : missingDocumentalText;
+  if (!block) return "Dado não identificado nos documentos analisados.";
+  const items = (block.items || []).map((item) => `${item.title}: ${item.text}`).join("\n");
+  return [block.text, items].filter(Boolean).join("\n").trim();
 }
 
 function buildHistoryPayload(data) {
@@ -241,14 +208,14 @@ function buildHistoryPayload(data) {
     contratosInquilinos: assistedTextByTitle(data, "Contratos e inquilinos"),
     obrasExpansoes: assistedTextByTitle(data, "Obras, expansões e imóveis em desenvolvimento"),
     estrategiaVsPortfolio: assistedTextByTitle(data, "Estratégia do fundo vs portfólio atual"),
-    tipoGestao: fieldText(data, "tipoGestao"),
+    tipoGestao: "Dado não identificado nos documentos analisados.",
     estruturaCapitalAlavancagem: assistedTextByTitle(data, "Estrutura de capital e alavancagem"),
     historicoEmissoes: assistedTextByTitle(data, "Histórico de emissões de cotas"),
     pontosPositivos: assistedTextByTitle(data, "Pontos positivos"),
     pontosAtencao: assistedTextByTitle(data, "Pontos de atenção / riscos"),
     eventosNaoRecorrentes: assistedTextByTitle(data, "Eventos não recorrentes"),
     dadosNaoIdentificados: assistedTextByTitle(data, "Dados não identificados nos documentos"),
-    explicacaoFinanceiraAquisicoes: fieldText(data, "explicacaoFinanceiraAquisicoes"),
+    explicacaoFinanceiraAquisicoes: "Dado não identificado nos documentos analisados.",
   };
 }
 
@@ -258,7 +225,7 @@ async function loadDocumentalHistory(ticker) {
   const data = await response.json();
   if (!response.ok) throw new Error(data.error || "Não foi possível consultar o histórico documental.");
   documentalHistory.innerHTML = (data.history || []).map(historyItem).join("") ||
-    '<li class="documental-lab-card"><strong>Nenhum histórico documental salvo para este ticker.</strong></li>';
+    '<li class="documental-lab-card"><strong>Nenhum histórico registrado</strong><span>Não há resumos salvos para este ticker.</span></li>';
 }
 
 async function loadDocumentalTimeline(ticker) {
@@ -267,7 +234,7 @@ async function loadDocumentalTimeline(ticker) {
   const data = await response.json();
   if (!response.ok) throw new Error(data.error || "Não foi possível consultar a linha do tempo documental.");
   documentalTimeline.innerHTML = (data.events || []).map(timelineItem).join("") ||
-    '<li class="documental-lab-card"><strong>Nenhum evento registrado para este ticker.</strong></li>';
+    '<li class="documental-lab-card"><strong>Nenhum evento registrado</strong><span>Não há eventos salvos para este ticker.</span></li>';
 }
 
 function render(data) {
@@ -275,20 +242,23 @@ function render(data) {
   const info = data.summary || {};
   summary.innerHTML = [
     summaryCard("Ticker", info.ticker || data.ticker),
-    summaryCard("Segmento", [info.type, info.segment].filter(Boolean).join(" - ")),
-    summaryCard("Competência", competenceFrom((data.documents || []).find((document) => document.competence)?.competence) || competenceFrom(data.collectedAt)),
-    summaryCard("Status", "analisado"),
+    summaryCard("Tipo / segmento", [info.type, info.segment].filter(Boolean).join(" - ")),
+    summaryCard("Administrador", info.administrator),
+    summaryCard("Gestor", info.manager),
+    summaryCard("Fonte", data.source),
+    summaryCard("Data de coleta", data.collectedAt ? new Date(data.collectedAt).toLocaleString("pt-BR") : ""),
   ].join("");
 
   facts.innerHTML = (data.facts || []).map(factCard).join("") ||
     '<p class="documental-lab-message">Não há dados estruturados disponíveis para exibição.</p>';
-  assisted.innerHTML = documentalSummaryItems.map((item) => assistedBlock(data, item)).join("");
+  assisted.innerHTML = (data.assistedReading || []).map(assistedBlock).join("") ||
+    '<p class="documental-lab-message">Dado não identificado nos documentos analisados.</p>';
   const sources = data.documentalSources || {};
   documentalSources.innerHTML = [
-    sourceCard("Fonte oficial", sources.official, "Não informado."),
-    sourceCard("Fonte regulatória", sources.regulatory, "Não informado."),
-    sourceCard("Atalho de consulta", sources.shortcut, "Não informado."),
-    sourceCard("Pasta Drive", sources.driveFolder, "Não informado."),
+    sourceCard("Fonte oficial", sources.official, "Fonte oficial não cadastrada."),
+    sourceCard("Fonte regulatória", sources.regulatory, "FNET / CVM"),
+    sourceCard("Atalho de consulta", sources.shortcut, "Clube FII"),
+    sourceCard("Pasta Drive", sources.driveFolder, "Pasta Drive não cadastrada."),
   ].join("");
   documents.innerHTML = (data.documents || []).map(documentItem).join("") ||
     '<li class="documental-lab-card"><strong>Nenhum documento informado</strong><span>Não informado.</span></li>';
