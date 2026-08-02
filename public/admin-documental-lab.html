@@ -116,6 +116,13 @@
         font-size: 20px;
       }
 
+      .documental-block-meta {
+        margin: -6px 0 14px;
+        color: #6b7d89;
+        font-size: 12px;
+        line-height: 1.45;
+      }
+
       .documental-lab-facts {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -295,14 +302,12 @@
 
         <section class="documental-lab-panel is-wide">
           <h2>Dados estruturados do último período</h2>
+          <p class="documental-block-meta" data-documental-facts-meta></p>
           <div class="documental-lab-facts" data-documental-facts></div>
         </section>
 
         <section class="documental-lab-panel is-wide">
           <h2>Leitura documental assistida</h2>
-          <div class="documental-lab-actions">
-            <button type="button" data-save-documental-history>Salvar resumo no histórico documental</button>
-          </div>
           <div class="documental-assisted-grid" data-documental-assisted></div>
         </section>
 

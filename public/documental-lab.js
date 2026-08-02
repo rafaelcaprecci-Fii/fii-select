@@ -3,6 +3,7 @@ const resultSection = document.querySelector("[data-documental-result]");
 const message = document.querySelector("[data-documental-message]");
 const summary = document.querySelector("[data-documental-summary]");
 const facts = document.querySelector("[data-documental-facts]");
+const factsMeta = document.querySelector("[data-documental-facts-meta]");
 const assisted = document.querySelector("[data-documental-assisted]");
 const documentalSources = document.querySelector("[data-documental-sources]");
 const investorsVariation = document.querySelector("[data-documental-investors-variation]");
@@ -72,9 +73,17 @@ function factCard(item) {
     <article class="documental-lab-card">
       <small>${escapeHtml(item.label)}</small>
       <strong>${escapeHtml(formatValue(item.key, item.value))}</strong>
-      <span>${escapeHtml(sourceText(item))}</span>
     </article>
   `;
+}
+
+function factsMetadata(items = []) {
+  const first = items.find((item) => item.competence || item.collectedAt || item.source) || {};
+  return [
+    `Fonte: ${first.source || "Dados estruturados CVM"}`,
+    first.competence ? `Competência: ${formatDate(first.competence)}` : "",
+    first.collectedAt ? `Coleta: ${formatDate(first.collectedAt)}` : "",
+  ].filter(Boolean).join(" • ");
 }
 
 function summaryCard(label, value) {
@@ -212,6 +221,8 @@ function render(data) {
 
   facts.innerHTML = (data.facts || []).map(factCard).join("") ||
     '<p class="documental-lab-message">Não há dados estruturados disponíveis para exibição.</p>';
+  const metadata = factsMetadata(data.facts || []);
+  if (factsMeta) factsMeta.textContent = metadata;
   assisted.innerHTML = (data.assistedReading || []).map(assistedBlock).join("") ||
     '<p class="documental-lab-message">Dado não identificado nos documentos analisados.</p>';
   const sources = data.documentalSources || {};
