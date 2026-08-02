@@ -37,6 +37,10 @@ test("interface do laboratório documental oculta fonte técnica e usa flags ami
   assert.match(interfaceSource, /Fontes documentais/);
   assert.match(interfaceSource, /data-documental-sources/);
   assert.match(interfaceSource, /data-documental-investors-variation/);
+  assert.match(interfaceSource, /Importar da planilha/);
+  assert.match(interfaceSource, /POST \/admin\/api\/documental-history\/import-sheet/);
+  assert.match(interfaceSource, /Indicadores isolados/);
+  assert.match(interfaceSource, /data-documental-metrics/);
   assert.match(interfaceSource, /Abrir/);
   assert.match(interfaceSource, /Não cadastrado/);
   assert.doesNotMatch(interfaceSource, /Documentos \/ Relatórios disponíveis/);
@@ -78,6 +82,7 @@ test("laboratório documental é interno, read-only e sanitizado", async (contex
   const documentalHistoryPath = join(directory, "fund-documental-history.json");
   const documentalTimelinePath = join(directory, "fund-timeline-events.json");
   const documentalSourcesPath = join(directory, "fund-document-sources.json");
+  const documentalMetricsPath = join(directory, "fund-documental-metrics.json");
   const preloadPath = join(directory, "mock-fetch.mjs");
   const usersContent = JSON.stringify(
     [{ id: "u1", name: "Admin Teste", email: "admin@example.com", status: "active" }],
@@ -128,6 +133,7 @@ test("laboratório documental é interno, read-only e sanitizado", async (contex
       DOCUMENTAL_HISTORY_PATH: documentalHistoryPath,
       DOCUMENTAL_TIMELINE_PATH: documentalTimelinePath,
       DOCUMENTAL_SOURCES_PATH: documentalSourcesPath,
+      DOCUMENTAL_METRICS_PATH: documentalMetricsPath,
       ADMIN_USER: "admin-test",
       ADMIN_PASSWORD: "password-test",
       BRAPI_TOKEN: "fake-brapi-token",
@@ -218,6 +224,7 @@ test("rotas administrativas persistem histórico, timeline e fontes documentais"
   const documentalHistoryPath = join(directory, "fund-documental-history.json");
   const documentalTimelinePath = join(directory, "fund-timeline-events.json");
   const documentalSourcesPath = join(directory, "fund-document-sources.json");
+  const documentalMetricsPath = join(directory, "fund-documental-metrics.json");
   const usersContent = JSON.stringify([{ id: "u1", name: "Admin Teste", email: "admin@example.com", status: "active" }]);
   const searchesContent = JSON.stringify([{ userId: "u1", ticker: "HGLG11", searchedAt: "2026-07-01T00:00:00.000Z" }]);
   const comparisonsContent = JSON.stringify([{ userId: "u1", tickers: ["HGLG11"] }]);
@@ -238,6 +245,7 @@ test("rotas administrativas persistem histórico, timeline e fontes documentais"
       DOCUMENTAL_HISTORY_PATH: documentalHistoryPath,
       DOCUMENTAL_TIMELINE_PATH: documentalTimelinePath,
       DOCUMENTAL_SOURCES_PATH: documentalSourcesPath,
+      DOCUMENTAL_METRICS_PATH: documentalMetricsPath,
       ADMIN_USER: "admin-test",
       ADMIN_PASSWORD: "password-test",
       NODE_ENV: "test",
@@ -254,6 +262,14 @@ test("rotas administrativas persistem histórico, timeline e fontes documentais"
 
   const unauthenticatedHistory = await fetch(`${baseUrl}/admin/api/documental-history?ticker=JSRE11`);
   assert.equal(unauthenticatedHistory.status, 401);
+
+  const unauthenticatedHistoryImport = await fetch(`${baseUrl}/admin/api/documental-history/import-sheet`, {
+    method: "POST",
+  });
+  assert.equal(unauthenticatedHistoryImport.status, 401);
+
+  const unauthenticatedMetrics = await fetch(`${baseUrl}/admin/api/documental-metrics?ticker=BTLG11`);
+  assert.equal(unauthenticatedMetrics.status, 401);
 
   const emptyHistory = await fetch(`${baseUrl}/admin/api/documental-history?ticker=JSRE11`, {
     headers: { Authorization: auth },
@@ -315,6 +331,55 @@ test("rotas administrativas persistem histórico, timeline e fontes documentais"
   assert.equal(savedHistoryBody.history.length, 1);
   assert.equal(JSON.parse(await readFile(documentalHistoryPath, "utf8")).length, 1);
 
+  const importHistory = await fetch(`${baseUrl}/admin/api/documental-history/import-sheet`, {
+    method: "POST",
+    headers: { Authorization: auth, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      ticker: "btlg11",
+      competencia: "2026-06",
+      segmento: "Logística",
+      status: "analisado",
+      fontes: "Relatório Gerencial + Informe Mensal + Fato Relevante",
+      resumoMes: "Resumo importado da planilha.",
+      tipoGestao: "",
+      explicacaoFinanceiraAquisicoes: "Aquisições explicadas na planilha.",
+    }),
+  });
+  assert.equal(importHistory.status, 201);
+  const importHistoryBody = await importHistory.json();
+  assert.equal(importHistoryBody.imported, true);
+  assert.equal(importHistoryBody.ticker, "BTLG11");
+  assert.equal(importHistoryBody.updated, false);
+
+  const updateImportedHistory = await fetch(`${baseUrl}/admin/api/documental-history/import-sheet`, {
+    method: "POST",
+    headers: { Authorization: auth, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      ticker: "BTLG11",
+      competencia: "2026-06",
+      segmento: "Logística",
+      resumoMes: "Resumo importado atualizado.",
+    }),
+  });
+  assert.equal(updateImportedHistory.status, 200);
+  const updateImportedHistoryBody = await updateImportedHistory.json();
+  assert.equal(updateImportedHistoryBody.updated, true);
+
+  const importedHistory = await fetch(`${baseUrl}/admin/api/documental-history?ticker=BTLG11`, {
+    headers: { Authorization: auth },
+  });
+  const importedHistoryBody = await importedHistory.json();
+  assert.equal(importedHistoryBody.history.length, 1);
+  assert.equal(importedHistoryBody.history[0].resumoMes, "Resumo importado atualizado.");
+  assert.equal(importedHistoryBody.history[0].fontes && Object.keys(importedHistoryBody.history[0].fontes).length, 0);
+
+  const rejectedPdfHistory = await fetch(`${baseUrl}/admin/api/documental-history/import-sheet`, {
+    method: "POST",
+    headers: { Authorization: auth, "Content-Type": "application/json" },
+    body: JSON.stringify({ ticker: "BTLG11", competencia: "2026-07", pdfUrl: "https://example.com/a.pdf" }),
+  });
+  assert.equal(rejectedPdfHistory.status, 400);
+
   const createEvent = await fetch(`${baseUrl}/admin/api/documental-timeline`, {
     method: "POST",
     headers: { Authorization: auth, "Content-Type": "application/json" },
@@ -368,6 +433,75 @@ test("rotas administrativas persistem histórico, timeline e fontes documentais"
   const sourcesBody = await sources.json();
   assert.equal(sourcesBody.sources.fonteOficialNome, "Safra Asset");
   assert.equal(JSON.parse(await readFile(documentalSourcesPath, "utf8")).length, 1);
+
+  const createMetrics = await fetch(`${baseUrl}/admin/api/documental-metrics`, {
+    method: "POST",
+    headers: { Authorization: auth, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      ticker: "BTLG11",
+      competencia: "2026-06",
+      segmento: "Logística",
+      vacanciaFisica: "4,4%",
+      caixa: "R$ 7.081.112.753,36",
+      abl: "1.435.343",
+      cotaPatrimonial: "107,039120",
+      fonte: "Informe Mensal + Relatório Gerencial",
+      observacoes: "",
+    }),
+  });
+  assert.equal(createMetrics.status, 201);
+  const createMetricsBody = await createMetrics.json();
+  assert.equal(createMetricsBody.record.vacanciaFisica, 4.4);
+  assert.equal(createMetricsBody.record.caixa, 7081112753.36);
+  assert.equal(createMetricsBody.record.abl, 1435343);
+  assert.equal(createMetricsBody.record.cotaPatrimonial, 107.039120);
+  assert.equal(createMetricsBody.record.dividendYield, null);
+
+  const updateMetrics = await fetch(`${baseUrl}/admin/api/documental-metrics`, {
+    method: "POST",
+    headers: { Authorization: auth, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      ticker: "BTLG11",
+      competencia: "2026-06",
+      segmento: "Logística",
+      dividendYield: 0.8562,
+    }),
+  });
+  assert.equal(updateMetrics.status, 200);
+  const updateMetricsBody = await updateMetrics.json();
+  assert.equal(updateMetricsBody.updated, true);
+  assert.equal(updateMetricsBody.record.dividendYield, 0.8562);
+
+  const importMetrics = await fetch(`${baseUrl}/admin/api/documental-metrics/import-sheet`, {
+    method: "POST",
+    headers: { Authorization: auth, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      ticker: "BTLG11",
+      competencia: "2026-07",
+      segmento: "Logística",
+      vacanciaFinanceira: "",
+      passivos: "236.622.592,67",
+      fonte: "Planilha documental",
+    }),
+  });
+  assert.equal(importMetrics.status, 201);
+  const importMetricsBody = await importMetrics.json();
+  assert.equal(importMetricsBody.ticker, "BTLG11");
+
+  const rejectedPdfMetrics = await fetch(`${baseUrl}/admin/api/documental-metrics/import-sheet`, {
+    method: "POST",
+    headers: { Authorization: auth, "Content-Type": "application/json" },
+    body: JSON.stringify({ ticker: "BTLG11", competencia: "2026-08", filePath: "/tmp/a.pdf" }),
+  });
+  assert.equal(rejectedPdfMetrics.status, 400);
+
+  const metrics = await fetch(`${baseUrl}/admin/api/documental-metrics?ticker=BTLG11`, {
+    headers: { Authorization: auth },
+  });
+  const metricsBody = await metrics.json();
+  assert.deepEqual(metricsBody.metrics.map((record) => record.competencia), ["2026-07", "2026-06"]);
+  assert.equal(metricsBody.metrics[0].passivos, 236622592.67);
+  assert.equal(JSON.parse(await readFile(documentalMetricsPath, "utf8")).length, 2);
 
   assert.equal(await readFile(usersPath, "utf8"), usersContent);
   assert.equal(await readFile(searchesPath, "utf8"), searchesContent);

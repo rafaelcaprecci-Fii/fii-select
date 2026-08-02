@@ -267,6 +267,23 @@
         color: #587080;
       }
 
+      .documental-lab-note {
+        margin: 0 0 14px;
+        color: #587080;
+        font-size: 13px;
+        line-height: 1.55;
+      }
+
+      .documental-lab-compact-button {
+        padding: 10px 13px;
+        border: 1px solid rgba(15, 38, 56, 0.16);
+        border-radius: 12px;
+        background: #fff;
+        color: #0f2638;
+        font-weight: 800;
+        cursor: pointer;
+      }
+
       @media (max-width: 900px) {
         .documental-lab-page {
           padding: 18px;
@@ -310,6 +327,17 @@
 
       <section class="documental-lab-grid" data-documental-result hidden>
         <section class="documental-lab-panel is-wide">
+          <h2>Importação via planilha</h2>
+          <button class="documental-lab-compact-button" type="button" data-documental-import-help-toggle>
+            Importar da planilha
+          </button>
+          <p class="documental-lab-note" data-documental-import-help hidden>
+            Para importar da planilha, configure o Make para enviar a linha da aba resumos_mensais para
+            POST /admin/api/documental-history/import-sheet.
+          </p>
+        </section>
+
+        <section class="documental-lab-panel is-wide">
           <h2>Resumo do fundo</h2>
           <div class="documental-lab-facts" data-documental-summary></div>
         </section>
@@ -334,6 +362,12 @@
         <section class="documental-lab-panel is-wide">
           <h2>Variação no número de cotistas</h2>
           <ul class="documental-lab-list" data-documental-investors-variation></ul>
+        </section>
+
+        <section class="documental-lab-panel is-wide">
+          <h2>Indicadores isolados</h2>
+          <p class="documental-block-meta">Base persistente para gráficos futuros, sem análise automática.</p>
+          <div class="documental-lab-facts" data-documental-metrics></div>
         </section>
       </section>
     </main>

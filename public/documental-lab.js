@@ -8,6 +8,9 @@ const assisted = document.querySelector("[data-documental-assisted]");
 const assistedMeta = document.querySelector("[data-documental-assisted-meta]");
 const documentalSources = document.querySelector("[data-documental-sources]");
 const investorsVariation = document.querySelector("[data-documental-investors-variation]");
+const documentalMetrics = document.querySelector("[data-documental-metrics]");
+const importHelpToggle = document.querySelector("[data-documental-import-help-toggle]");
+const importHelp = document.querySelector("[data-documental-import-help]");
 const saveHistoryButton = document.querySelector("[data-save-documental-history]");
 
 let currentDocumentalData = null;
@@ -125,6 +128,15 @@ function sourceCard(label, source, fallback) {
   `;
 }
 
+function metricCard(label, value) {
+  return `
+    <article class="documental-lab-card">
+      <small>${escapeHtml(label)}</small>
+      <strong>${escapeHtml(String(value))}</strong>
+    </article>
+  `;
+}
+
 function statusFlag(status) {
   if (status === "concerning") return { label: "Preocupante", className: "is-concerning" };
   if (status === "positive" || status === "ok") return { label: "Positivo", className: "is-positive" };
@@ -237,6 +249,51 @@ async function loadDocumentalTimeline(ticker) {
     '<li class="documental-lab-card"><strong>Nenhum evento registrado</strong><span>Não há eventos salvos para este ticker.</span></li>';
 }
 
+const metricLabels = {
+  vacanciaFisica: "Vacância física",
+  vacanciaFinanceira: "Vacância financeira",
+  dividendYield: "Dividend Yield",
+  selicAtual: "Selic atual",
+  variacaoNumeroCotistas: "Variação no número de cotistas",
+  caixa: "Caixa",
+  alavancagem: "Alavancagem",
+  passivos: "Passivos",
+  receitaImobiliaria: "Receita imobiliária",
+  noi: "NOI",
+  inadimplencia: "Inadimplência",
+  abl: "ABL",
+  valorPatrimonial: "Valor patrimonial",
+  cotaPatrimonial: "Cota patrimonial",
+};
+
+function renderDocumentalMetrics(records = []) {
+  if (!documentalMetrics) return;
+  if (!records.length) {
+    documentalMetrics.innerHTML = '<p class="documental-lab-message">Nenhum indicador isolado salvo para este ticker.</p>';
+    return;
+  }
+
+  documentalMetrics.innerHTML = records.flatMap((record) => {
+    const filled = Object.entries(metricLabels)
+      .filter(([key]) => record[key] !== null && record[key] !== undefined && record[key] !== "")
+      .map(([key, label]) => metricCard(`${record.competencia} • ${label}`, formatValue(key, record[key])));
+    return filled.length ? filled : [metricCard(record.competencia, "Sem indicadores preenchidos")];
+  }).join("");
+}
+
+async function loadDocumentalMetrics(ticker) {
+  if (!documentalMetrics) return;
+  documentalMetrics.innerHTML = '<p class="documental-lab-message">Consultando indicadores isolados...</p>';
+  try {
+    const response = await fetch(`/admin/api/documental-metrics?ticker=${encodeURIComponent(ticker)}`);
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Não foi possível consultar os indicadores isolados.");
+    renderDocumentalMetrics(data.metrics || []);
+  } catch (error) {
+    documentalMetrics.innerHTML = `<p class="documental-lab-message">${escapeHtml(error.message || "Falha ao consultar indicadores isolados.")}</p>`;
+  }
+}
+
 function render(data) {
   currentDocumentalData = data;
   const info = data.summary || {};
@@ -267,7 +324,13 @@ function render(data) {
     ? checkItem(investorsCheck)
     : '<li class="documental-lab-card"><strong>Variação no número de cotistas</strong><span>Dados insuficientes para esta checagem.</span></li>';
   resultSection.hidden = false;
+  loadDocumentalMetrics(data.ticker);
 }
+
+importHelpToggle?.addEventListener("click", () => {
+  if (!importHelp) return;
+  importHelp.hidden = !importHelp.hidden;
+});
 
 saveHistoryButton?.addEventListener("click", async () => {
   if (!currentDocumentalData) return;

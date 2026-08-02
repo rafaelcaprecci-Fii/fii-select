@@ -45,9 +45,11 @@ import {
 import {
   addDocumentalTimelineEvent,
   documentalHistoryForTicker,
+  documentalMetricsForTicker,
   documentalSourcesForTicker,
   documentalTimelineForTicker,
   upsertDocumentalHistory,
+  upsertDocumentalMetrics,
   upsertDocumentalSources,
 } from "./lib/documental-store.mjs";
 
@@ -82,6 +84,11 @@ const documentalSourcesFile = resolveJsonDataPath({
   rootDir: root,
   configuredPath: process.env.DOCUMENTAL_SOURCES_PATH,
   fallbackRelativePath: join("data", "fund-document-sources.json"),
+});
+const documentalMetricsFile = resolveJsonDataPath({
+  rootDir: root,
+  configuredPath: process.env.DOCUMENTAL_METRICS_PATH,
+  fallbackRelativePath: join("data", "fund-documental-metrics.json"),
 });
 const port = Number(process.env.PORT || 4173);
 const host = process.env.HOST || "127.0.0.1";
@@ -2873,6 +2880,73 @@ const server = http.createServer(async (req, res) => {
         return json(res, 405, { ok: false, error: "Método não permitido." });
       }
 
+      if (url.pathname === "/admin/api/documental-history/import-sheet") {
+        if (req.method !== "POST") {
+          return json(res, 405, { ok: false, error: "Método não permitido." });
+        }
+        try {
+          const body = await readJsonBody(req);
+          // Payload esperado do Make: linha estruturada da aba resumos_mensais, sem arquivos ou PDFs.
+          const result = await upsertDocumentalHistory(documentalHistoryFile, body);
+          return json(res, result.created ? 201 : 200, {
+            ok: true,
+            imported: true,
+            ticker: result.record.ticker,
+            competencia: result.record.competencia,
+            updated: !result.created,
+          });
+        } catch (error) {
+          return json(res, 400, { ok: false, error: error.message || "Não foi possível importar o resumo documental." });
+        }
+      }
+
+      if (url.pathname === "/admin/api/documental-metrics") {
+        if (req.method === "GET") {
+          try {
+            const ticker = url.searchParams.get("ticker") || url.searchParams.get("Ticker") || "";
+            const metrics = await documentalMetricsForTicker(documentalMetricsFile, ticker);
+            return json(res, 200, { ok: true, ticker: String(ticker).trim().toUpperCase(), metrics });
+          } catch (error) {
+            return json(res, 400, { ok: false, error: error.message || "Indicadores documentais inválidos." });
+          }
+        }
+        if (req.method === "POST") {
+          try {
+            const body = await readJsonBody(req);
+            const result = await upsertDocumentalMetrics(documentalMetricsFile, body);
+            return json(res, result.created ? 201 : 200, {
+              ok: true,
+              ticker: result.record.ticker,
+              competencia: result.record.competencia,
+              updated: !result.created,
+              record: result.record,
+            });
+          } catch (error) {
+            return json(res, 400, { ok: false, error: error.message || "Não foi possível salvar os indicadores documentais." });
+          }
+        }
+        return json(res, 405, { ok: false, error: "Método não permitido." });
+      }
+
+      if (url.pathname === "/admin/api/documental-metrics/import-sheet") {
+        if (req.method !== "POST") {
+          return json(res, 405, { ok: false, error: "Método não permitido." });
+        }
+        try {
+          const body = await readJsonBody(req);
+          // Payload esperado do Make: linha estruturada de indicadores numéricos, sem arquivos ou PDFs.
+          const result = await upsertDocumentalMetrics(documentalMetricsFile, body);
+          return json(res, result.created ? 201 : 200, {
+            ok: true,
+            ticker: result.record.ticker,
+            competencia: result.record.competencia,
+            updated: !result.created,
+          });
+        } catch (error) {
+          return json(res, 400, { ok: false, error: error.message || "Não foi possível importar os indicadores documentais." });
+        }
+      }
+
       if (url.pathname === "/admin/api/documental-timeline") {
         if (req.method === "GET") {
           try {
@@ -3211,6 +3285,7 @@ await Promise.all([
   ensureJsonFile(documentalHistoryFile, []),
   ensureJsonFile(documentalTimelineFile, []),
   ensureJsonFile(documentalSourcesFile, []),
+  ensureJsonFile(documentalMetricsFile, []),
 ]);
 
 server.listen(port, host, () => {
