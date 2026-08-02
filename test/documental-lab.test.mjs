@@ -22,10 +22,18 @@ test("interface do laboratório documental oculta fonte técnica e usa flags ami
   assert.match(interfaceSource, /Variação no número de cotistas/);
   assert.match(interfaceSource, /Leitura documental assistida/);
   assert.match(interfaceSource, /data-documental-assisted/);
+  assert.match(interfaceSource, /data-documental-assisted-meta/);
+  assert.match(interfaceSource, /Fonte: Relatório Gerencial \+ Informe Mensal \+ Fato Relevante/);
+  assert.match(interfaceSource, /documentalSummaryItems/);
+  assert.match(interfaceSource, /Resumo do mês/);
+  assert.match(interfaceSource, /Tipo de gestão/);
+  assert.match(interfaceSource, /Explicação financeira de aquisições/);
+  assert.match(interfaceSource, /Dado não identificado nos documentos analisados\./);
   assert.match(interfaceSource, /data-documental-facts-meta/);
   assert.doesNotMatch(interfaceSource, /data-documental-facts-footer/);
   assert.doesNotMatch(interfaceSource, /data-save-documental-history>/);
   assert.doesNotMatch(interfaceSource, /Salvar resumo no histórico documental<\/button>/);
+  assert.doesNotMatch(interfaceSource, /supportLine/);
   assert.match(interfaceSource, /Fontes documentais/);
   assert.match(interfaceSource, /data-documental-sources/);
   assert.match(interfaceSource, /data-documental-investors-variation/);

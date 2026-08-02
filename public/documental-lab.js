@@ -5,11 +5,29 @@ const summary = document.querySelector("[data-documental-summary]");
 const facts = document.querySelector("[data-documental-facts]");
 const factsMeta = document.querySelector("[data-documental-facts-meta]");
 const assisted = document.querySelector("[data-documental-assisted]");
+const assistedMeta = document.querySelector("[data-documental-assisted-meta]");
 const documentalSources = document.querySelector("[data-documental-sources]");
 const investorsVariation = document.querySelector("[data-documental-investors-variation]");
 const saveHistoryButton = document.querySelector("[data-save-documental-history]");
 
 let currentDocumentalData = null;
+const missingDocumentalText = "Dado não identificado nos documentos analisados.";
+const documentalSummaryItems = [
+  { number: 1, field: "resumoMes", title: "Resumo do mês" },
+  { number: 2, field: "rendimentoOrigemDy", title: "Rendimento e origem do DY" },
+  { number: 3, field: "portfolioQualidadeAtivos", title: "Portfólio e qualidade dos ativos" },
+  { number: 4, field: "contratosInquilinos", title: "Contratos e inquilinos" },
+  { number: 5, field: "obrasExpansoes", title: "Obras, expansões e imóveis em desenvolvimento" },
+  { number: 6, field: "estrategiaVsPortfolio", title: "Estratégia do fundo vs portfólio atual" },
+  { number: 7, field: "tipoGestao", title: "Tipo de gestão" },
+  { number: 8, field: "estruturaCapitalAlavancagem", title: "Estrutura de capital e alavancagem" },
+  { number: 9, field: "historicoEmissoes", title: "Histórico de emissões de cotas" },
+  { number: 10, field: "pontosPositivos", title: "Pontos positivos" },
+  { number: 11, field: "pontosAtencao", title: "Pontos de atenção / riscos" },
+  { number: 12, field: "eventosNaoRecorrentes", title: "Eventos não recorrentes" },
+  { number: 13, field: "dadosNaoIdentificados", title: "Dados não identificados nos documentos" },
+  { number: 14, field: "explicacaoFinanceiraAquisicoes", title: "Explicação financeira de aquisições" },
+];
 
 const numberFormatter = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 2 });
 const integerFormatter = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
@@ -129,35 +147,47 @@ function checkItem(check) {
   `;
 }
 
-function supportLine(item) {
-  return `<span><b>${escapeHtml(item.label)}:</b> ${escapeHtml(formatValue(item.key || "", item.value))} • ${escapeHtml(sourceText(item))}</span>`;
+function textFromAssistedBlock(block) {
+  if (!block) return missingDocumentalText;
+  const items = (block.items || []).map((item) => `${item.title || "Item"}: ${item.text || missingDocumentalText}`);
+  const text = [block.text, ...items].filter(Boolean).join("\n");
+  return text.trim() || missingDocumentalText;
 }
 
-function assistedItem(item) {
-  const support = (item.support || []).map(supportLine).join("");
-  return `<li><b>${escapeHtml(item.title || "Item")}</b>: ${escapeHtml(item.text || "Dado não identificado nos documentos analisados.")}${support ? `<br>${support}` : ""}</li>`;
+function documentalText(data, item) {
+  const directText = String(data?.[item.field] || "").trim();
+  if (directText) return directText;
+  const block = (data.assistedReading || []).find((entry) => entry.title === item.title);
+  return textFromAssistedBlock(block);
 }
 
-function assistedBlock(block) {
-  const flag = statusFlag(block.status);
-  const support = (block.support || []).map(supportLine).join("");
-  const items = (block.items || []).map(assistedItem).join("");
+function assistedBlock(data, item) {
   return `
     <article class="documental-lab-card documental-assisted-card">
-      <span class="documental-lab-status ${flag.className}">${escapeHtml(flag.label)}</span>
-      <strong>${escapeHtml(block.title)}</strong>
-      <span>${escapeHtml(block.text || "Dado não identificado nos documentos analisados.")}</span>
-      ${support}
-      ${items ? `<ul>${items}</ul>` : ""}
+      <small>${String(item.number).padStart(2, "0")}</small>
+      <strong>${escapeHtml(item.title)}</strong>
+      <p>${escapeHtml(documentalText(data, item))}</p>
     </article>
   `;
 }
 
 function assistedTextByTitle(data, title) {
   const block = (data.assistedReading || []).find((item) => item.title === title);
-  if (!block) return "Dado não identificado nos documentos analisados.";
-  const items = (block.items || []).map((item) => `${item.title}: ${item.text}`).join("\n");
-  return [block.text, items].filter(Boolean).join("\n").trim();
+  return textFromAssistedBlock(block);
+}
+
+function fieldText(data, field) {
+  const item = documentalSummaryItems.find((entry) => entry.field === field);
+  return item ? documentalText(data, item) : missingDocumentalText;
+}
+
+function assistedMetadata(data) {
+  const firstDocument = (data.documents || []).find((document) => document.competence);
+  const competence = competenceFrom(firstDocument?.competence) || competenceFrom(data.collectedAt);
+  return [
+    "Fonte: Relatório Gerencial + Informe Mensal + Fato Relevante",
+    competence ? `Competência: ${formatDate(competence)}` : "",
+  ].filter(Boolean).join(" • ");
 }
 
 function buildHistoryPayload(data) {
@@ -178,14 +208,14 @@ function buildHistoryPayload(data) {
     contratosInquilinos: assistedTextByTitle(data, "Contratos e inquilinos"),
     obrasExpansoes: assistedTextByTitle(data, "Obras, expansões e imóveis em desenvolvimento"),
     estrategiaVsPortfolio: assistedTextByTitle(data, "Estratégia do fundo vs portfólio atual"),
-    tipoGestao: "Dado não identificado nos documentos analisados.",
+    tipoGestao: fieldText(data, "tipoGestao"),
     estruturaCapitalAlavancagem: assistedTextByTitle(data, "Estrutura de capital e alavancagem"),
     historicoEmissoes: assistedTextByTitle(data, "Histórico de emissões de cotas"),
     pontosPositivos: assistedTextByTitle(data, "Pontos positivos"),
     pontosAtencao: assistedTextByTitle(data, "Pontos de atenção / riscos"),
     eventosNaoRecorrentes: assistedTextByTitle(data, "Eventos não recorrentes"),
     dadosNaoIdentificados: assistedTextByTitle(data, "Dados não identificados nos documentos"),
-    explicacaoFinanceiraAquisicoes: "Dado não identificado nos documentos analisados.",
+    explicacaoFinanceiraAquisicoes: fieldText(data, "explicacaoFinanceiraAquisicoes"),
   };
 }
 
@@ -223,8 +253,8 @@ function render(data) {
     '<p class="documental-lab-message">Não há dados estruturados disponíveis para exibição.</p>';
   const metadata = factsMetadata(data.facts || []);
   if (factsMeta) factsMeta.textContent = metadata;
-  assisted.innerHTML = (data.assistedReading || []).map(assistedBlock).join("") ||
-    '<p class="documental-lab-message">Dado não identificado nos documentos analisados.</p>';
+  if (assistedMeta) assistedMeta.textContent = assistedMetadata(data);
+  assisted.innerHTML = documentalSummaryItems.map((item) => assistedBlock(data, item)).join("");
   const sources = data.documentalSources || {};
   documentalSources.innerHTML = [
     sourceCard("Fonte oficial", sources.official, "Não cadastrado"),
